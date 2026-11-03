@@ -85,6 +85,69 @@ func (a *app) caseTitles() []string {
 	return listItems(a.t, body, "Cases")
 }
 
+type link struct {
+	Text string
+	Href string
+}
+
+func (a *app) startRun(name string) (int, string) {
+	a.t.Helper()
+	return a.do(http.MethodPost, "/runs", url.Values{"name": {name}})
+}
+
+func (a *app) mustStartRun(name string) {
+	a.t.Helper()
+	if status, body := a.startRun(name); status != http.StatusOK {
+		a.t.Fatalf("start run %q: status %d\n%s", name, status, body)
+	}
+}
+
+func (a *app) runs() []link {
+	a.t.Helper()
+	status, body := a.do(http.MethodGet, "/runs", nil)
+	if status != http.StatusOK {
+		a.t.Fatalf("GET /runs: status %d\n%s", status, body)
+	}
+	return listLinks(a.t, body, "Runs")
+}
+
+func (a *app) runNames() []string {
+	a.t.Helper()
+	var names []string
+	for _, r := range a.runs() {
+		names = append(names, r.Text)
+	}
+	return names
+}
+
+func (a *app) executions(run link) []string {
+	a.t.Helper()
+	status, body := a.do(http.MethodGet, run.Href, nil)
+	if status != http.StatusOK {
+		a.t.Fatalf("GET %s: status %d\n%s", run.Href, status, body)
+	}
+	return listItems(a.t, body, "Executions")
+}
+
+func listLinks(t *testing.T, page, label string) []link {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var links []link
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && n.Data == "ul" && attr(n, "aria-label") == label {
+			for a := range n.Descendants() {
+				if a.Type == html.ElementNode && a.Data == "a" {
+					links = append(links, link{Text: text(a), Href: attr(a, "href")})
+				}
+			}
+		}
+	}
+	return links
+}
+
 func listItems(t *testing.T, page, label string) []string {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(page))

@@ -1,0 +1,39 @@
+package web
+
+import (
+	"fmt"
+
+	"github.com/ardaarslan47/qa-hub/internal/qahub"
+)
+
+templ runsPage(runs []qahub.Run, formError string) {
+	@layout("Runs") {
+		<h1>Runs</h1>
+		<form method="post" action="/runs">
+			<label for="name">Name</label>
+			<input
+				id="name"
+				name="name"
+				type="text"
+				autofocus
+				if formError != "" {
+					aria-invalid="true"
+					aria-describedby="name-error"
+				}
+			/>
+			<button type="submit">Start run</button>
+			if formError != "" {
+				<p id="name-error" role="alert">{ formError }</p>
+			}
+		</form>
+		if len(runs) == 0 {
+			<p>No runs yet.</p>
+		} else {
+			<ul aria-label="Runs">
+				for _, run := range runs {
+					<li><a href={ templ.SafeURL(fmt.Sprintf("/runs/%d", run.ID)) }>{ run.Name.String() }</a></li>
+				}
+			</ul>
+		}
+	}
+}

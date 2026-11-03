@@ -1,0 +1,14 @@
+package web
+
+import "github.com/ardaarslan47/qa-hub/internal/qahub"
+
+templ runPage(run qahub.Run, executions []qahub.Execution) {
+	@layout(run.Name.String()) {
+		<h1>{ run.Name.String() }</h1>
+		<ul aria-label="Executions">
+			for _, e := range executions {
+				<li><span>{ e.Title.String() }</span> <span>Untested</span></li>
+			}
+		</ul>
+	}
+}

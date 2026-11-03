@@ -19,6 +19,9 @@ func New(store *qahub.Store) http.Handler {
 	mux.Handle("GET /{$}", http.RedirectHandler("/cases", http.StatusSeeOther))
 	mux.HandleFunc("GET /cases", h.listCases)
 	mux.HandleFunc("POST /cases", h.createCase)
+	mux.HandleFunc("GET /runs", h.listRuns)
+	mux.HandleFunc("POST /runs", h.startRun)
+	mux.HandleFunc("GET /runs/{id}", h.showRun)
 	return mux
 }
 
