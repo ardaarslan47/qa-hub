@@ -333,9 +333,17 @@ func TestCasesSurviveRestartOnTheSameDatabaseFile(t *testing.T) {
 
 func TestBlankTitleIsRejectedWithErrorMessageAndNothingIsStored(t *testing.T) {
 	blankTitles := map[string]string{
-		"empty":           "",
-		"spaces":          "   ",
-		"tab and newline": "\t \n",
+		"empty":                           "",
+		"spaces":                          "   ",
+		"tab and newline":                 "\t \n",
+		"zero width space":                "\u200b",
+		"zero width joiner":               "\u200d",
+		"word joiner":                     "\u2060",
+		"byte order mark":                 "\ufeff",
+		"soft hyphen":                     "\u00ad",
+		"right-to-left mark":              "\u200f",
+		"nul":                             "\x00",
+		"zero width space between spaces": " \u200b ",
 	}
 	for name, blank := range blankTitles {
 		t.Run(name, func(t *testing.T) {

@@ -28,9 +28,17 @@ func TestStartedRunAppearsInListAndItsPageHasAnUntestedExecutionPerCase(t *testi
 
 func TestBlankRunNameIsRejectedWithErrorMessageAndNothingIsStored(t *testing.T) {
 	blankNames := map[string]string{
-		"empty":           "",
-		"spaces":          "   ",
-		"tab and newline": "\t \n",
+		"empty":                           "",
+		"spaces":                          "   ",
+		"tab and newline":                 "\t \n",
+		"zero width space":                "\u200b",
+		"zero width joiner":               "\u200d",
+		"word joiner":                     "\u2060",
+		"byte order mark":                 "\ufeff",
+		"soft hyphen":                     "\u00ad",
+		"right-to-left mark":              "\u200f",
+		"nul":                             "\x00",
+		"zero width space between spaces": " \u200b ",
 	}
 	for name, blank := range blankNames {
 		t.Run(name, func(t *testing.T) {

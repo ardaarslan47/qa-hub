@@ -21,7 +21,7 @@ type RunName struct {
 
 func ParseRunName(raw string) (RunName, error) {
 	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
+	if !hasVisibleRune(trimmed) {
 		return RunName{}, UserError("Name is required")
 	}
 	return RunName{value: trimmed}, nil

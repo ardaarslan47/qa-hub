@@ -13,7 +13,7 @@ type CaseTitle struct {
 
 func ParseCaseTitle(raw string) (CaseTitle, error) {
 	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
+	if !hasVisibleRune(trimmed) {
 		return CaseTitle{}, UserError("Title is required")
 	}
 	return CaseTitle{value: trimmed}, nil
