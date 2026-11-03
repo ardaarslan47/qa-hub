@@ -41,6 +41,7 @@ func New(store *qahub.Store) http.Handler {
 	mux.HandleFunc("GET /runs", s.listRuns)
 	mux.HandleFunc("POST /runs", s.startRun)
 	mux.HandleFunc("GET /runs/{id}", s.showRun)
+	mux.HandleFunc("POST /runs/{runID}/executions/{id}/status", s.recordStatus)
 	return mux
 }
 
@@ -99,8 +100,8 @@ func (s *server) renderRuns(w http.ResponseWriter, r *http.Request, status int, 
 }
 
 func (s *server) showRun(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
+	id, ok := pathID(r, "id")
+	if !ok {
 		http.NotFound(w, r)
 		return
 	}
@@ -114,6 +115,35 @@ func (s *server) showRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	render(w, r, http.StatusOK, runPage(run, executions))
+}
+
+func (s *server) recordStatus(w http.ResponseWriter, r *http.Request) {
+	runID, runOK := pathID(r, "runID")
+	executionID, executionOK := pathID(r, "id")
+	if !runOK || !executionOK {
+		http.NotFound(w, r)
+		return
+	}
+	status, err := qahub.ParseStatus(r.PostFormValue("status"))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	err = s.store.RecordStatus(r.Context(), runID, executionID, status)
+	if errors.Is(err, qahub.ErrNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, string(runPath(runID)), http.StatusSeeOther)
+}
+
+func pathID(r *http.Request, name string) (int64, bool) {
+	id, err := strconv.ParseInt(r.PathValue(name), 10, 64)
+	return id, err == nil
 }
 
 func render(w http.ResponseWriter, r *http.Request, status int, page templ.Component) {

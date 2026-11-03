@@ -68,6 +68,7 @@ templ runPage(run qahub.Run, executions []qahub.Execution) {
 				<tr>
 					<th scope="col">Case</th>
 					<th scope="col">Status</th>
+					<th scope="col">Record</th>
 				</tr>
 			</thead>
 			<tbody>
@@ -75,6 +76,12 @@ templ runPage(run qahub.Run, executions []qahub.Execution) {
 					<tr>
 						<td>{ e.Title }</td>
 						<td>{ statusLabel(e.Status) }</td>
+						<td>
+							<form method="post" action={ statusPath(run.ID, e.ID) }>
+								<button type="submit" name="status" value="Passed">Passed</button>
+								<button type="submit" name="status" value="Failed">Failed</button>
+							</form>
+						</td>
 					</tr>
 				}
 			</tbody>

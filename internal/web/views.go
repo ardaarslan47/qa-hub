@@ -16,6 +16,10 @@ func runPath(id int64) templ.SafeURL {
 	return templ.SafeURL(fmt.Sprintf("/runs/%d", id))
 }
 
+func statusPath(runID, executionID int64) templ.SafeURL {
+	return templ.SafeURL(fmt.Sprintf("/runs/%d/executions/%d/status", runID, executionID))
+}
+
 func statusLabel(status *qahub.Status) string {
 	if status == nil {
 		return "Untested"

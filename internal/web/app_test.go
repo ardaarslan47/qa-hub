@@ -131,10 +131,25 @@ func (a *app) executionRows(path string) []executionRow {
 	return executionRows(resp.Body)
 }
 
+func (a *app) statusActions(runPath string) []string {
+	a.t.Helper()
+	var actions []string
+	for _, match := range statusActionPattern.FindAllStringSubmatch(a.get(runPath).Body, -1) {
+		actions = append(actions, match[1])
+	}
+	return actions
+}
+
+func (a *app) recordStatus(action, status string) response {
+	a.t.Helper()
+	return a.post(action, url.Values{"status": {status}})
+}
+
 var (
-	tags           = regexp.MustCompile(`<[^>]*>`)
-	runLinkPattern = regexp.MustCompile(`<a href="(/runs/\d+)">(.*?)</a>`)
-	rowPattern     = regexp.MustCompile(`(?s)<tr>(.*?)</tr>`)
+	tags                = regexp.MustCompile(`<[^>]*>`)
+	runLinkPattern      = regexp.MustCompile(`<a href="(/runs/\d+)">(.*?)</a>`)
+	rowPattern          = regexp.MustCompile(`(?s)<tr>(.*?)</tr>`)
+	statusActionPattern = regexp.MustCompile(`<form method="post" action="(/runs/\d+/executions/\d+/status)">`)
 )
 
 func elementTexts(body, element string) []string {

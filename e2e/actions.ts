@@ -37,6 +37,10 @@ export function executionRow(page: Page, title: string): Locator {
   return executionRows(page).filter({ has: page.getByRole('cell', { name: title, exact: true }) });
 }
 
+export async function recordStatus(row: Locator, status: 'Passed' | 'Failed'): Promise<void> {
+  await row.getByRole('button', { name: status, exact: true }).click();
+}
+
 export function statusCell(row: Locator, status: string): Locator {
   return row.getByRole('cell', { name: status, exact: true });
 }
