@@ -1,0 +1,34 @@
+name: rules
+
+on:
+  push:
+    branches: [main, 'release/**']
+    tags: ['v*']
+
+jobs:
+  rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Kural testleri
+        run: .githooks/tests/run
+
+      - name: Force push yok
+        if: github.event.forced
+        run: |
+          echo "${{ github.ref_name }} force push ile yeniden yazıldı." >&2
+          exit 1
+
+      - name: Commit kuralları
+        if: github.ref_type == 'branch'
+        run: .githooks/check-range "${{ github.event.before }}" "${{ github.sha }}"
+
+      - name: Versiyon tag'i
+        if: github.ref_type == 'tag'
+        run: |
+          sha=$(git rev-parse "$GITHUB_REF")
+          echo "$GITHUB_REF $sha $GITHUB_REF 0000000000000000000000000000000000000000" \
+            | .githooks/run pre-push origin

@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+set -u
+
+hooks_src="$(cd "$(dirname "$0")/.." && pwd)"
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+pass=0
+fail=0
+
+expect() {
+  local want=$1 name=$2
+  shift 2
+  if "$@" >"$work/out" 2>&1; then got=ok; else got=blocked; fi
+  if [ "$got" = "$want" ]; then
+    pass=$((pass + 1))
+  else
+    fail=$((fail + 1))
+    echo "✗ $name: beklenen $want, gelen $got"
+    sed 's/^/    /' "$work/out"
+  fi
+}
+
+export GIT_AUTHOR_NAME=test GIT_AUTHOR_EMAIL=test@example.com
+export GIT_COMMITTER_NAME=test GIT_COMMITTER_EMAIL=test@example.com
+
+git init -q --bare -b main "$work/remote.git"
+git init -q -b main "$work/repo"
+cd "$work/repo"
+cp -R "$hooks_src" .githooks
+git config core.hooksPath .githooks
+git config tag.gpgSign false
+git config commit.gpgSign false
+git remote add origin "$work/remote.git"
+
+c() { git commit -q --allow-empty -m "$1"; }
+
+expect ok "feat mesajı" c "feat: ilk özellik"
+expect ok "scope ve ! içeren mesaj" c "fix(api)!: id formatı değişti"
+expect ok "merge mesajı" c "Merge branch 'agent/42'"
+expect ok "fixup mesajı" c "fixup! feat: ilk özellik"
+expect blocked "tipsiz mesaj" c "update stuff"
+expect blocked "büyük harfli tip" c "Feat: bir şey"
+expect blocked "iki noktadan sonra boşluksuz" c "feat:bir şey"
+expect blocked "100 karakterden uzun" c "feat: $(printf 'a%.0s' {1..100})"
+
+cf() {
+  mkdir -p "$(dirname "$1")"
+  printf '%s\n' "$2" >"$1"
+  git add "$1" && git commit -q -m "feat: $1"
+  local status=$?
+  git reset -q --hard
+  return $status
+}
+expect ok "yorumsuz sh" cf ok.sh $'#!/usr/bin/env bash\necho hi'
+expect ok "string içinde #" cf str.sh $'echo "a # b" \'c # d\''
+expect ok "parametre genişletmede #" cf param.sh 'echo ${#x} $# ${y#pre}'
+expect ok "string içinde //" cf url.js 'const u = "http://a.b";'
+expect ok "C'de pointer" cf p.c '*ptr = 1;'
+expect ok "markdown başlığı" cf notes.md '# Başlık'
+expect ok "uzantısız, shebang'siz dosya" cf LICENSE 'foo # bar'
+expect blocked "sh kendi satırında #" cf a.sh $'# açıklama\necho hi'
+expect blocked "sh satır sonu #" cf a.sh 'echo hi # açıklama'
+expect blocked "1. satır dışında shebang" cf a.sh $'echo hi\n#!/bin/sh'
+expect blocked "bash shebang'li uzantısız dosya" cf bin/tool $'#!/usr/bin/env bash\n# açıklama'
+expect blocked "string'den sonra #" cf b.py 'print("#")  # açıklama'
+expect blocked "py bitişik #" cf c.py 'x = 1#açıklama'
+expect blocked "yaml kendi satırında #" cf d.yml $'# açıklama\nkey: value'
+expect blocked "js kendi satırında //" cf e.js $'// açıklama\nfoo();'
+expect blocked "js satır sonu //" cf e.js 'foo(); // açıklama'
+expect blocked "ts doc yorumu" cf f.ts $'/**\n * açıklama\n */\nconst a = 1;'
+expect blocked "ts blok yorum devam satırı" cf f.ts '   * açıklama'
+expect blocked "JSX yorumu" cf view.tsx $'<div>\n  {/* açıklama */}\n</div>'
+expect blocked "css /* */" cf g.css 'a { color: red; } /* açıklama */'
+expect blocked "sql --" cf h.sql 'select 1; -- açıklama'
+expect blocked "html <!--" cf i.html '<!-- açıklama -->'
+expect blocked "markdown <!--" cf notes.md '<!-- açıklama -->'
+printf 'eski = 1  # açıklama\n' >legacy.py
+git add legacy.py
+git -c core.hooksPath=/dev/null commit -q -m "chore: eski ihlal"
+expect ok "dokunulmayan satırdaki eski ihlal" cf legacy.py $'eski = 1  # açıklama\nyeni = 2'
+expect blocked "değiştirilen satırdaki ihlal" cf legacy.py 'eski = 3  # açıklama'
+
+expect ok "main push" git push -q origin main
+git switch -q -c agent/42
+c "feat: agent işi"
+expect blocked "feature branch push" git push -q origin agent/42
+git switch -q main
+git merge -q --ff-only agent/42
+expect ok "merge sonrası main push" git push -q origin main
+expect ok "release branch push" git push -q origin main:release/v1.1
+expect blocked "kötü adlı release branch" git push -q origin main:release/next
+git -c core.hooksPath=/dev/null push -q origin main:eski-branch
+expect ok "eski branch silme" git push -q origin :eski-branch
+expect blocked "main silme" git push -q origin :main
+
+git commit -q --amend --allow-empty -m "feat: yeniden yazılmış"
+expect blocked "main force push" git push -q -f origin main
+git reset -q --hard origin/main
+
+git tag -a v1.0.0 -m v1.0.0
+expect ok "annotated semver tag" git push -q origin v1.0.0
+git tag v1.0.1
+expect blocked "lightweight tag" git push -q origin v1.0.1
+git tag -a v1.1 -m v1.1
+expect blocked "semver olmayan tag" git push -q origin v1.1
+git tag -a deneme -m deneme
+expect blocked "versiyon dışı tag" git push -q origin deneme
+git switch -q -c yan
+c "feat: main'de olmayan iş"
+git tag -a v2.0.0 -m v2.0.0
+git switch -q main
+expect blocked "trunk dışı commit'e tag" git push -q origin v2.0.0
+expect blocked "versiyon tag'i silme" git push -q origin :refs/tags/v1.0.0
+
+base=$(git rev-parse HEAD)
+git -c core.hooksPath=/dev/null commit -q --allow-empty -m "hook atlatıldı"
+expect blocked "check-range atlatılmış commit mesajı" .githooks/check-range "$base" HEAD
+expect ok "check-range temiz aralık" .githooks/check-range "$(git rev-parse HEAD~2)" HEAD~1
+printf 'x = 1  # açıklama\n' >skipped.py
+git add skipped.py
+git -c core.hooksPath=/dev/null commit -q -m "feat: yorumlu dosya"
+expect blocked "check-range atlatılmış yorum" .githooks/check-range HEAD~1 HEAD
+expect ok "check-range main'i geri koyar" test "$(git symbolic-ref HEAD)" = refs/heads/main
+expect ok "check-range index'e dokunmaz" git diff --cached --quiet
+expect ok "check-range kök commit" .githooks/check-range 0000000 "$(git rev-list --max-parents=0 HEAD)"
+expect blocked "check-range sembolik ref" .githooks/check-range 0000000 HEAD
+blob=$(printf 'x = 1  # açıklama\n' | git hash-object -w --stdin)
+root=$(git commit-tree "$(printf '100644 blob %s\tkok.py\n' "$blob" | git mktree)" -m "feat: kök")
+expect blocked "check-range yorumlu kök commit" .githooks/check-range 0000000 "$root"
+
+echo "$pass geçti, $fail kaldı"
+[ "$fail" -eq 0 ]

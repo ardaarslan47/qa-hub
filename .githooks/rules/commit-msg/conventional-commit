@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -u
+
+msg_file=$1
+header=$(grep -v '^#' "$msg_file" | sed '/^[[:space:]]*$/d' | head -n1)
+
+case "$header" in
+  "Merge "* | "Revert \""* | "fixup! "* | "squash! "* | "amend! "*) exit 0 ;;
+esac
+
+types='feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert'
+pattern="^($types)(\([a-z0-9._/-]+\))?!?: [^[:space:]]"
+
+if [[ $header =~ $pattern ]] && [ ${#header} -le 100 ]; then
+  exit 0
+fi
+
+cat >&2 <<EOF
+[conventional-commit] Commit mesajının ilk satırı geçersiz:
+  "$header"
+Beklenen: <tip>[(scope)][!]: <açıklama>  (en fazla 100 karakter)
+  tipler: ${types//|/, }
+Örnekler:
+  feat(runs): test koşusuna not ekleme
+  fix: boş case listesinde çökme
+  feat(api)!: case id'leri UUID oldu
+EOF
+exit 1

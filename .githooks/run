@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -u
+
+hook=$1
+shift
+rules_dir="$(git rev-parse --show-toplevel)/.githooks/rules/$hook"
+[ -d "$rules_dir" ] || exit 0
+
+stdin_file=$(mktemp)
+trap 'rm -f "$stdin_file"' EXIT
+case "$hook" in
+  pre-push) cat >"$stdin_file" ;;
+esac
+
+failed=()
+for rule in "$rules_dir"/*; do
+  [ -f "$rule" ] && [ -x "$rule" ] || continue
+  if ! "$rule" "$@" <"$stdin_file"; then
+    failed+=("$hook/$(basename "$rule")")
+  fi
+done
+
+if [ ${#failed[@]} -gt 0 ]; then
+  {
+    echo
+    echo "✗ $hook engellendi. İhlal edilen kurallar: ${failed[*]}"
+    echo "  İhlali düzeltip tekrar dene. Kural yanlışsa .githooks/rules/ altındaki dosyasını düzenle."
+  } >&2
+  exit 1
+fi

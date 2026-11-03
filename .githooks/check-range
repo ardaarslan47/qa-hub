@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -u
+
+before=$1
+after=$2
+if [[ $before =~ ^0+$ ]]; then
+  commits=$(git rev-parse --verify "$after^{commit}") || exit 1
+else
+  commits=$(git rev-list --reverse "$before..$after")
+fi
+
+run="$(cd "$(dirname "$0")" && pwd)/run"
+tmp=$(mktemp -d)
+msg_file="$tmp/msg"
+index_file="$tmp/index"
+orig_head=$(git symbolic-ref -q HEAD || git rev-parse HEAD)
+
+restore() {
+  if [[ $orig_head == refs/* ]]; then
+    git symbolic-ref HEAD "$orig_head"
+  else
+    git update-ref --no-deref HEAD "$orig_head"
+  fi
+  rm -rf "$tmp"
+}
+trap restore EXIT
+
+empty_commit=$(GIT_AUTHOR_NAME=check-range GIT_AUTHOR_EMAIL=check-range@localhost \
+  GIT_COMMITTER_NAME=check-range GIT_COMMITTER_EMAIL=check-range@localhost \
+  git commit-tree "$(git hash-object -t tree /dev/null)" -m empty)
+
+status=0
+for commit in $commits; do
+  short=$(git rev-parse --short "$commit")
+
+  git log -1 --format=%B "$commit" >"$msg_file"
+  if ! "$run" commit-msg "$msg_file"; then
+    echo "  ↑ commit $short" >&2
+    status=1
+  fi
+
+  parent=$(git rev-parse -q --verify "$commit^" || echo "$empty_commit")
+  git update-ref --no-deref HEAD "$parent"
+  GIT_INDEX_FILE=$index_file git read-tree "$commit"
+  if ! GIT_INDEX_FILE=$index_file "$run" pre-commit; then
+    echo "  ↑ commit $short" >&2
+    status=1
+  fi
+done
+exit $status

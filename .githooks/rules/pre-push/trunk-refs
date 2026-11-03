@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+set -u
+
+remote=$1
+semver='^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+release_branch='^release/v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$'
+status=0
+
+fail() {
+  echo "[trunk-refs] $1" >&2
+  status=1
+}
+
+is_zero() { [[ $1 =~ ^0+$ ]]; }
+
+on_trunk() {
+  local commit=$1 ref
+  for ref in $(git for-each-ref --format='%(refname)' \
+    refs/heads/main "refs/remotes/$remote/main" \
+    refs/heads/release/ "refs/remotes/$remote/release/"); do
+    git merge-base --is-ancestor "$commit" "$ref" 2>/dev/null && return 0
+  done
+  return 1
+}
+
+check_fast_forward() {
+  local name=$1 local_sha=$2 remote_sha=$3
+  is_zero "$remote_sha" && return
+  if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+    fail "$name force push ile yeniden yazılamaz. 'git pull --rebase' ile remote'un üstüne al ve normal push et."
+  fi
+}
+
+while read -r _local_ref local_sha remote_ref remote_sha; do
+  [ -n "${remote_ref:-}" ] || continue
+  case "$remote_ref" in
+    refs/heads/*)
+      branch=${remote_ref#refs/heads/}
+      if [ "$branch" = main ]; then
+        if is_zero "$local_sha"; then
+          fail "main silinemez."
+        else
+          check_fast_forward main "$local_sha" "$remote_sha"
+        fi
+      elif [[ $branch =~ $release_branch ]]; then
+        is_zero "$local_sha" || check_fast_forward "$branch" "$local_sha" "$remote_sha"
+      elif ! is_zero "$local_sha"; then
+        fail "'$branch' remote'a push edilemez. Remote'ta sadece main ve release/vX.Y yaşar. Kısa ömürlü branch'i lokalde main'e merge ya da rebase et, sonra main'i push et."
+      fi
+      ;;
+    refs/tags/*)
+      tag=${remote_ref#refs/tags/}
+      if is_zero "$local_sha"; then
+        [[ $tag =~ $semver ]] && fail "Versiyon tag'i $tag silinemez. Hatalı bir versiyonu yeni bir patch versiyonuyla düzelt."
+        continue
+      fi
+      if ! [[ $tag =~ $semver ]]; then
+        fail "'$tag' geçersiz tag adı. Sadece vMAJOR.MINOR.PATCH (ör. v1.2.0) tag'leri push edilir."
+        continue
+      fi
+      if [ "$(git cat-file -t "$local_sha")" != tag ]; then
+        fail "$tag lightweight tag. Annotated oluştur: git tag -d $tag && git tag -a $tag -m \"$tag\" <commit>"
+        continue
+      fi
+      if ! on_trunk "$(git rev-parse "$local_sha^{commit}")"; then
+        fail "$tag main'de ya da bir release/vX.Y branch'inde olmayan bir commit'i gösteriyor. Önce commit'i main'e al, tag'i oradaki commit'e at."
+      fi
+      ;;
+  esac
+done
+
+exit $status

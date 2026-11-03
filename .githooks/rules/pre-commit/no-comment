@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+set -u
+
+styles_for() {
+  local path=$1 first
+  case "${path##*/}" in
+    *.sh | *.bash | *.zsh | *.yml | *.yaml | *.toml | *.mk | *.pl | Makefile | Dockerfile | *.dockerfile) echo hash ;;
+    *.py | *.rb) echo hashany ;;
+    *.js | *.jsx | *.mjs | *.cjs | *.ts | *.tsx | *.mts | *.cts | *.go | *.java | *.kt | *.kts | *.scala | \
+      *.c | *.h | *.cc | *.cpp | *.hpp | *.cs | *.rs | *.swift | *.dart | *.php) echo slash ;;
+    *.css | *.scss | *.less) echo block ;;
+    *.sql) echo dash ;;
+    *.html | *.htm | *.xml | *.svg | *.md) echo html ;;
+    *.vue | *.svelte) echo "html slash" ;;
+    *.*) ;;
+    *)
+      first=$(git show ":$path" 2>/dev/null | head -n1)
+      case "$first" in
+        '#!'*python* | '#!'*ruby*) echo hashany ;;
+        '#!'*node* | '#!'*deno* | '#!'*bun*) echo slash ;;
+        '#!'*sh* | '#!'*perl*) echo hash ;;
+      esac
+      ;;
+  esac
+}
+
+finder=$(
+  cat <<'AWK'
+/^\+\+\+ / { next }
+/^@@ / { split($3, a, ","); ln = substr(a[1], 2) + 0; next }
+/^\+/ { check(substr($0, 2)); ln++ }
+
+function check(line,   s, code, n, i, st, cut) {
+  if (ln == 1 && line ~ /^#!/) return
+  s = line
+  gsub(/"([^"\\]|\\.)*"/, "\"\"", s)
+  gsub(/'([^'\\]|\\.)*'/, "''", s)
+  gsub(/`[^`]*`/, "``", s)
+  n = split(styles, st, " ")
+  for (i = 1; i <= n; i++) {
+    code = " " s
+    if (st[i] == "hash") cut = sub(/[ \t]#.*/, "", code)
+    else if (st[i] == "hashany") cut = sub(/#.*/, "", code)
+    else if (st[i] == "slash") cut = sub(/\/\/.*|\/\*.*/, "", code)
+    else if (st[i] == "block") cut = sub(/\/\*.*/, "", code)
+    else if (st[i] == "dash") cut = sub(/--.*/, "", code)
+    else if (st[i] == "html") cut = sub(/<!--.*/, "", code)
+    else cut = 0
+    if ((st[i] == "slash" || st[i] == "block") && s ~ /^[ \t]*\*([ \t\/]|$)/) cut = 1
+    if (cut) {
+      print "  " path ":" ln ": " line
+      return
+    }
+  }
+}
+AWK
+)
+
+report=$(
+  git diff --cached --name-only -z --diff-filter=ACMR | while IFS= read -r -d '' path; do
+    styles=$(styles_for "$path")
+    [ -n "$styles" ] || continue
+    git diff --cached -U0 --no-color --no-ext-diff -- "$path" |
+      awk -v path="$path" -v styles="$styles" "$finder"
+  done
+)
+
+[ -z "$report" ] && exit 0
+
+{
+  echo "[no-comment] Yorum satırı var. Bu repo'da yorum yasak:"
+  echo "$report"
+  echo "Düzeltme: yorumu sil. Kod onsuz anlaşılmıyorsa kodu netleştir: değişkene, fonksiyona ya da dosyaya ne yaptığını söyleyen bir isim ver."
+  echo "İşaret bir yorum değilse (string dışında kalmış bir #, //, -- vb.) satırı yeniden yaz ya da string'e al."
+} >&2
+exit 1

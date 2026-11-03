@@ -13,3 +13,7 @@ Standart adlar, değiştirilmedi. Bkz. `docs/agents/triage-labels.md`.
 ### Domain dokümanları
 
 Single-context. Bkz. `docs/agents/domain.md`.
+
+### Commit ve push kuralları
+
+Trunk-based: herkes doğrudan `main`'e push eder, versiyonlar `vX.Y.Z` tag'leriyle tutulur (bkz. `docs/adr/0001-trunk-based-ve-versiyon-tagleri.md`). Kurallar `.githooks/rules/` altında commit'i ya da push'u engelleyen script'lerdir. Bir hook seni engellediğinde ihlali düzelt. Yeni bir kuralı zorunlu yapmak için `/encode-rule` kullan.

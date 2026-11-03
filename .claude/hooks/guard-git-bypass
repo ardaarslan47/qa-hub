@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+set -u
+
+cmd=$(jq -r '.tool_input.command // ""')
+
+block() {
+  cat >&2 <<EOF
+Bu komut git hook kurallarını atlatıyor: $1
+Kurallar zorunlu. İhlali düzelt ve commit/push'u hook'larla tekrar çalıştır.
+Kural gerçekten yanlışsa kullanıcıya söyle ya da /encode-rule ile kuralın kendisini düzelt.
+EOF
+  exit 2
+}
+
+if grep -Eq -- '--no-verify' <<<"$cmd"; then
+  block "--no-verify"
+fi
+if grep -Eq '(^|[[:space:];&|(])git[[:space:]][^;&|]*commit[^;&|]*[[:space:]]-[a-zA-Z]*n[a-zA-Z]*([[:space:]]|$)' <<<"$cmd"; then
+  block "git commit -n"
+fi
+hooks_path_set=$(grep -Eoi 'core\.hooksPath(=|[[:space:]]+)[^[:space:];&|-][^[:space:];&|]*' <<<"$cmd" | sed -E 's/^core\.hooksPath(=|[[:space:]]+)//I')
+if grep -Eqi -- '--unset(-all)?[^;&|]*hooksPath' <<<"$cmd" ||
+  { [ -n "$hooks_path_set" ] && grep -Evqx '["'\'']?\.githooks/?["'\'']?' <<<"$hooks_path_set"; }; then
+  block "core.hooksPath değişikliği"
+fi
+exit 0
