@@ -6,7 +6,8 @@ styles_for() {
   case "${path##*/}" in
     *.sh | *.bash | *.zsh | *.yml | *.yaml | *.toml | *.mk | *.pl | Makefile | Dockerfile | *.dockerfile) echo hash ;;
     *.py | *.rb) echo hashany ;;
-    *.js | *.jsx | *.mjs | *.cjs | *.ts | *.tsx | *.mts | *.cts | *.go | *.java | *.kt | *.kts | *.scala | \
+    *.go) echo go ;;
+    *.js | *.jsx | *.mjs | *.cjs | *.ts | *.tsx | *.mts | *.cts | *.java | *.kt | *.kts | *.scala | \
       *.c | *.h | *.cc | *.cpp | *.hpp | *.cs | *.rs | *.swift | *.dart | *.php) echo slash ;;
     *.css | *.scss | *.less) echo block ;;
     *.sql) echo dash ;;
@@ -38,6 +39,10 @@ function check(line,   s, code, n, i, st, cut) {
   gsub(/`[^`]*`/, "``", s)
   n = split(styles, st, " ")
   for (i = 1; i <= n; i++) {
+    if (st[i] == "go") {
+      if (s ~ /^[ \t]*\/\/go:[a-z]+([ \t]|$)/) return
+      st[i] = "slash"
+    }
     code = " " s
     if (st[i] == "hash") cut = sub(/[ \t]#.*/, "", code)
     else if (st[i] == "hashany") cut = sub(/#.*/, "", code)
