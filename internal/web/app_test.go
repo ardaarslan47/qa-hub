@@ -126,7 +126,83 @@ func (a *app) executions(run link) []string {
 	if status != http.StatusOK {
 		a.t.Fatalf("GET %s: status %d\n%s", run.Href, status, body)
 	}
-	return listItems(a.t, body, "Executions")
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		a.t.Fatal(err)
+	}
+	var summaries []string
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && attr(n, "data-testid") == "execution" {
+			summaries = append(summaries, text(n))
+		}
+	}
+	return summaries
+}
+
+func (a *app) enterStatus(run link, title, status string) (int, string) {
+	a.t.Helper()
+	return a.do(http.MethodPost, a.statusAction(run, title), url.Values{"status": {status}})
+}
+
+func (a *app) mustEnterStatus(run link, title, status string) {
+	a.t.Helper()
+	if code, body := a.enterStatus(run, title, status); code != http.StatusOK {
+		a.t.Fatalf("enter %s for %q: status %d\n%s", status, title, code, body)
+	}
+}
+
+func (a *app) statusAction(run link, title string) string {
+	a.t.Helper()
+	return attr(a.statusForm(run, title), "action")
+}
+
+func (a *app) statusChoices(run link, title string) []string {
+	a.t.Helper()
+	var choices []string
+	for n := range a.statusForm(run, title).Descendants() {
+		if n.Type == html.ElementNode && n.Data == "button" && attr(n, "type") == "submit" && attr(n, "name") == "status" {
+			choices = append(choices, attr(n, "value"))
+		}
+	}
+	return choices
+}
+
+func (a *app) statusForm(run link, title string) *html.Node {
+	a.t.Helper()
+	code, body := a.do(http.MethodGet, run.Href, nil)
+	if code != http.StatusOK {
+		a.t.Fatalf("GET %s: status %d\n%s", run.Href, code, body)
+	}
+	doc, err := html.Parse(strings.NewReader(body))
+	if err != nil {
+		a.t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || n.Data != "ul" || attr(n, "aria-label") != "Executions" {
+			continue
+		}
+		for li := range n.ChildNodes() {
+			if li.Type != html.ElementNode || li.Data != "li" {
+				continue
+			}
+			var form *html.Node
+			var hasTitle bool
+			for d := range li.Descendants() {
+				if d.Type != html.ElementNode {
+					continue
+				}
+				hasTitle = hasTitle || d.Data == "span" && text(d) == title
+				if d.Data == "form" {
+					form = d
+				}
+			}
+			if hasTitle && form != nil {
+				return form
+			}
+		}
+	}
+	a.t.Fatalf("no status form for %q on %s\n%s", title, run.Href, body)
+	return nil
 }
 
 func listLinks(t *testing.T, page, label string) []link {

@@ -1,14 +1,32 @@
 package web
 
-import "github.com/ardaarslan47/qa-hub/internal/qahub"
+import (
+	"fmt"
+
+	"github.com/ardaarslan47/qa-hub/internal/qahub"
+)
 
 templ runPage(run qahub.Run, executions []qahub.Execution) {
 	@layout(run.Name.String()) {
 		<h1>{ run.Name.String() }</h1>
 		<ul aria-label="Executions">
 			for _, e := range executions {
-				<li><span>{ e.Title.String() }</span> <span>Untested</span></li>
+				<li>
+					<span data-testid="execution"><span>{ e.Title.String() }</span> <span>{ statusLabel(e) }</span></span>
+					<form method="post" action={ templ.SafeURL(fmt.Sprintf("/runs/%d/executions/%d/status", run.ID, e.ID)) }>
+						for _, s := range qahub.Statuses() {
+							<button type="submit" name="status" value={ s.String() }>{ s.String() }</button>
+						}
+					</form>
+				</li>
 			}
 		</ul>
 	}
+}
+
+func statusLabel(e qahub.Execution) string {
+	if e.Status == nil {
+		return "Untested"
+	}
+	return e.Status.String()
 }

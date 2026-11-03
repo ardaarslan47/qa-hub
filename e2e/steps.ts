@@ -25,6 +25,14 @@ export async function openRun(page: Page, name: string) {
   await page.getByRole('link', { name, exact: true }).click();
 }
 
-export function executionList(page: Page) {
+function executionRows(page: Page) {
   return page.getByRole('list', { name: 'Executions' }).getByRole('listitem');
+}
+
+export function executionList(page: Page) {
+  return executionRows(page).getByTestId('execution');
+}
+
+export async function enterStatus(page: Page, title: string, status: 'Passed' | 'Failed') {
+  await executionRows(page).filter({ hasText: title }).getByRole('button', { name: status }).click();
 }

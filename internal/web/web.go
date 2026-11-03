@@ -22,6 +22,7 @@ func New(store *qahub.Store) http.Handler {
 	mux.HandleFunc("GET /runs", h.listRuns)
 	mux.HandleFunc("POST /runs", h.startRun)
 	mux.HandleFunc("GET /runs/{id}", h.showRun)
+	mux.HandleFunc("POST /runs/{runID}/executions/{id}/status", h.enterStatus)
 	return mux
 }
 

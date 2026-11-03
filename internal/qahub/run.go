@@ -7,9 +7,10 @@ import (
 )
 
 var (
-	ErrRunNameRequired = errors.New("run name is required")
-	ErrRunNotFound     = errors.New("run not found")
-	ErrNoCases         = errors.New("no cases to run")
+	ErrRunNameRequired   = errors.New("run name is required")
+	ErrRunNotFound       = errors.New("run not found")
+	ErrNoCases           = errors.New("no cases to run")
+	ErrExecutionNotFound = errors.New("execution not found")
 )
 
 type RunName struct {
@@ -38,8 +39,9 @@ type Run struct {
 type ExecutionID int64
 
 type Execution struct {
-	ID    ExecutionID
-	Title Title
+	ID     ExecutionID
+	Title  Title
+	Status *Status
 }
 
 func (s *Store) StartRun(ctx context.Context, name RunName) error {
@@ -98,7 +100,7 @@ func (s *Store) FindRun(ctx context.Context, id RunID) (Run, error) {
 }
 
 func (s *Store) Executions(ctx context.Context, run RunID) ([]Execution, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, title FROM executions WHERE run_id = ? ORDER BY id", run)
+	rows, err := s.db.QueryContext(ctx, "SELECT id, title, status FROM executions WHERE run_id = ? ORDER BY id", run)
 	if err != nil {
 		return nil, err
 	}
@@ -106,10 +108,30 @@ func (s *Store) Executions(ctx context.Context, run RunID) ([]Execution, error) 
 	var executions []Execution
 	for rows.Next() {
 		var e Execution
-		if err := rows.Scan(&e.ID, &e.Title.text); err != nil {
+		var status sql.NullString
+		if err := rows.Scan(&e.ID, &e.Title.text, &status); err != nil {
 			return nil, err
+		}
+		if status.Valid {
+			e.Status = &Status{name: status.String}
 		}
 		executions = append(executions, e)
 	}
 	return executions, rows.Err()
+}
+
+func (s *Store) EnterStatus(ctx context.Context, run RunID, execution ExecutionID, status Status) error {
+	res, err := s.db.ExecContext(ctx,
+		"UPDATE executions SET status = ? WHERE id = ? AND run_id = ?", status.name, execution, run)
+	if err != nil {
+		return err
+	}
+	matched, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if matched == 0 {
+		return ErrExecutionNotFound
+	}
+	return nil
 }
