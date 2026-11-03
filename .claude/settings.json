@@ -21,5 +21,9 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "pstack@cursor-plugins": true,
+    "mattpocock-skills@claude-plugins-official": true
   }
 }
