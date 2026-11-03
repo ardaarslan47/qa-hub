@@ -29,6 +29,7 @@ jobs:
       - name: Versiyon tag'i
         if: github.ref_type == 'tag'
         run: |
+          git fetch --force origin "$GITHUB_REF:$GITHUB_REF"
           sha=$(git rev-parse "$GITHUB_REF")
           echo "$GITHUB_REF $sha $GITHUB_REF 0000000000000000000000000000000000000000" \
             | .githooks/run pre-push origin
