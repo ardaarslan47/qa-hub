@@ -1,0 +1,38 @@
+name: app
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: templ generate
+        run: make generate
+
+      - name: go vet
+        run: make vet
+
+      - name: go test
+        run: make test
+
+      - name: Derle, Chromium kur, temiz SQLite ile ayağa kaldır, Playwright senaryolarını koş
+        run: make e2e
+        env:
+          PLAYWRIGHT_INSTALL_FLAGS: --with-deps
