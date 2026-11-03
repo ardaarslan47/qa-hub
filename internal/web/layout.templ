@@ -1,0 +1,26 @@
+package web
+
+templ layout(title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title } · QA Hub</title>
+			<style>
+				body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+				nav { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+				form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1.5rem; }
+				[role="alert"] { flex-basis: 100%; margin: 0; color: #b00020; }
+			</style>
+		</head>
+		<body>
+			<nav aria-label="Main">
+				<a href="/cases">Cases</a>
+			</nav>
+			<main>
+				{ children... }
+			</main>
+		</body>
+	</html>
+}
