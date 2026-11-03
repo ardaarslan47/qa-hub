@@ -1,12 +1,10 @@
 import { test, expect } from '../fixtures';
-import { createCase } from '../actions';
+import { caseList, createCase } from '../actions';
 
 test('1. Case creation: the title entered appears in the case list', async ({ page }) => {
   await createCase(page, 'Login with valid credentials');
 
-  await expect(page.getByRole('list', { name: 'Cases' }).getByRole('listitem')).toHaveText([
-    'Login with valid credentials',
-  ]);
+  await expect(caseList(page)).toHaveText(['Login with valid credentials']);
 });
 
 test('2. Blank title: no case is created and an error message is shown', async ({ page }) => {
@@ -15,5 +13,5 @@ test('2. Blank title: no case is created and an error message is shown', async (
   await createCase(page, '');
 
   await expect(page.getByRole('alert')).toHaveText('Title is required.');
-  await expect(page.getByRole('list', { name: 'Cases' }).getByRole('listitem')).toHaveText(['Existing case']);
+  await expect(caseList(page)).toHaveText(['Existing case']);
 });

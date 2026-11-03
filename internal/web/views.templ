@@ -2,11 +2,6 @@ package web
 
 import "github.com/ardaarslan47/qa-hub/internal/qahub"
 
-type caseForm struct {
-	Title string
-	Error string
-}
-
 templ layout(title string) {
 	<!DOCTYPE html>
 	<html lang="en">
@@ -19,6 +14,7 @@ templ layout(title string) {
 			<header>
 				<nav aria-label="Main">
 					<a href="/cases">Cases</a>
+					<a href="/runs">Runs</a>
 				</nav>
 			</header>
 			<main>
@@ -29,11 +25,11 @@ templ layout(title string) {
 	</html>
 }
 
-templ casesPage(cases []qahub.Case, form caseForm) {
+templ casesPage(cases []qahub.Case, form formState) {
 	@layout("Cases") {
 		<form method="post" action="/cases">
 			<label for="case-title">Title</label>
-			<input id="case-title" name="title" type="text" value={ form.Title }/>
+			<input id="case-title" name="title" type="text" value={ form.Value }/>
 			<button type="submit">Create case</button>
 			if form.Error != "" {
 				<p role="alert">{ form.Error }</p>
@@ -44,5 +40,44 @@ templ casesPage(cases []qahub.Case, form caseForm) {
 				<li>{ c.Title }</li>
 			}
 		</ul>
+	}
+}
+
+templ runsPage(runs []qahub.Run, form formState) {
+	@layout("Runs") {
+		<form method="post" action="/runs">
+			<label for="run-name">Name</label>
+			<input id="run-name" name="name" type="text" value={ form.Value }/>
+			<button type="submit">Start run</button>
+			if form.Error != "" {
+				<p role="alert">{ form.Error }</p>
+			}
+		</form>
+		<ul aria-label="Runs">
+			for _, run := range runs {
+				<li><a href={ runPath(run.ID) }>{ run.Name }</a></li>
+			}
+		</ul>
+	}
+}
+
+templ runPage(run qahub.Run, executions []qahub.Execution) {
+	@layout(run.Name) {
+		<table aria-label="Executions">
+			<thead>
+				<tr>
+					<th scope="col">Case</th>
+					<th scope="col">Status</th>
+				</tr>
+			</thead>
+			<tbody>
+				for _, e := range executions {
+					<tr>
+						<td>{ e.Title }</td>
+						<td>{ statusLabel(e.Status) }</td>
+					</tr>
+				}
+			</tbody>
+		</table>
 	}
 }
