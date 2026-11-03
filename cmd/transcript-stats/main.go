@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -17,38 +18,39 @@ func main() {
 }
 
 func run(out io.Writer, args []string) error {
-	if len(args) != 1 {
-		return errors.New("usage: transcript-stats <session.jsonl>")
+	flags := flag.NewFlagSet("transcript-stats", flag.ContinueOnError)
+	tickets := flags.Int("tickets", 20, "ticket count to project the root's context at")
+	limit := flags.Int("limit", 200000, "root context limit")
+	if err := flags.Parse(args); err != nil {
+		return err
 	}
-	report, err := transcript.Analyze(args[0])
+	if flags.NArg() != 1 {
+		return errors.New("usage: transcript-stats [-tickets N] [-limit TOKENS] <session.jsonl>")
+	}
+	report, err := transcript.Analyze(flags.Arg(0))
 	if err != nil {
 		return err
 	}
-	writeReport(out, report)
+	writeReport(out, report, *tickets, *limit)
 	return nil
 }
 
-func writeReport(out io.Writer, report transcript.Report) {
+func writeReport(out io.Writer, report transcript.Report, tickets, limit int) {
 	fmt.Fprintf(out, "root: %d calls, peak %d, final %d\n", report.Root.Calls, report.Root.Peak, report.Root.Final)
 	fmt.Fprintf(out, "tickets: %d, spawns: %d, spawns per ticket: %.1f\n", report.Tickets, len(report.Spawns), report.SpawnsPerTicket)
-	fmt.Fprintf(out, "root growth per ticket: %d, projected at 20 tickets: %d\n", report.GrowthPerTicket, report.ProjectedAt20Tickets)
+	fmt.Fprintf(out, "base %d, per ticket %d, per group %d, finish %d\n", report.Base, report.PerTicket, report.PerGroup, report.Finish)
+	fmt.Fprintf(out, "projected at %d tickets: %d, tickets within %d: %d\n", tickets, report.Projection(tickets), limit, report.TicketsWithin(limit))
 
-	fmt.Fprintln(out, "\n| ticket | spawns | root growth |")
+	fmt.Fprintln(out, "\n| phase | spawns | root growth |")
 	fmt.Fprintln(out, "|---|---|---|")
 	for _, phase := range report.Phases {
-		fmt.Fprintf(out, "| %d | %d | %d |\n", phase.Ticket, phase.Spawns, phase.Growth)
+		fmt.Fprintf(out, "| %s | %d | %d |\n", phase.Label, phase.Spawns, phase.Growth)
 	}
 
-	fmt.Fprintln(out, "\n| spawn | ticket | root context | growth since previous spawn |")
-	fmt.Fprintln(out, "|---|---|---|---|")
-	previous := 0
-	for i, spawn := range report.Spawns {
-		growth := "-"
-		if i > 0 {
-			growth = fmt.Sprint(spawn.RootContext - previous)
-		}
-		fmt.Fprintf(out, "| %s | %d | %d | %s |\n", spawn.Description, spawn.Ticket, spawn.RootContext, growth)
-		previous = spawn.RootContext
+	fmt.Fprintln(out, "\n| spawn | phase | root context |")
+	fmt.Fprintln(out, "|---|---|---|")
+	for _, spawn := range report.Spawns {
+		fmt.Fprintf(out, "| %s | %s | %d |\n", spawn.Description, spawn.Label, spawn.RootContext)
 	}
 
 	fmt.Fprintln(out, "\n| agent | model | calls | peak context |")

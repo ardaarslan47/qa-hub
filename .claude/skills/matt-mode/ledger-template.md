@@ -1,6 +1,7 @@
 # Ledger: #<parent> <title>
 
 - Goal: <the user's goal, one line>
+- Gate: <the command that runs every check CI runs>
 - Sessions: <session id per root session, for cmd/transcript-stats>
 
 ## Groups
@@ -18,4 +19,4 @@
 
 ## Events
 
-One line per state change, newest last: `<time> <ticket> <from> -> <to>: <why>`.
+Appended by `ledger.sh event`, newest last: `<time> <row> <from> -> <to>: <why>`, plus `<time> <label> worktree <path>` for each copied report.

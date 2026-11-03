@@ -23,6 +23,7 @@ func line(c call) string {
 	for _, description := range c.spawns {
 		content = append(content, map[string]any{
 			"type":  "tool_use",
+			"id":    "tu-" + description,
 			"name":  "Agent",
 			"input": map[string]any{"description": description, "prompt": "p"},
 		})
@@ -82,31 +83,62 @@ func TestRootContextCountsInputCacheReadAndCacheCreationOncePerMessage(t *testin
 	}
 }
 
+func user(content any) string {
+	out, err := json.Marshal(map[string]any{"type": "user", "message": map[string]any{"role": "user", "content": content}})
+	if err != nil {
+		panic(err)
+	}
+	return string(out)
+}
+
+func launched(description, agentID string) string {
+	return user([]map[string]any{{
+		"type":        "tool_result",
+		"tool_use_id": "tu-" + description,
+		"content":     []map[string]any{{"type": "text", "text": "Async agent launched successfully.\nagentId: " + agentID + " (internal ID)"}},
+	}})
+}
+
+func handBack(agentID string) string {
+	return user("Another Claude session sent a message:\n<agent-message from=\"" + agentID + "\">\n[Subagent hand-back] PASS\n</agent-message>")
+}
+
 func writeProgramSession(t *testing.T) string {
 	t.Helper()
 	return writeSession(t, t.TempDir(),
 		line(call{id: "m1", input: 1, created: 20000}),
-		line(call{id: "m2", input: 1, read: 20000, created: 9999}),
-		line(call{id: "m2", input: 1, read: 20000, created: 9999, spawns: []string{"#12 owner"}}),
-		line(call{id: "m3", input: 1, read: 30000, created: 3999, spawns: []string{"#12 verifier", "#13 owner"}}),
-		line(call{id: "m4", input: 1, read: 34000, created: 1999, spawns: []string{"group 1 interrogate"}}),
-		line(call{id: "m5", input: 0, read: 36000, created: 4000}),
+		line(call{id: "m2", read: 20001, created: 9999, spawns: []string{"#12 owner"}}),
+		launched("#12 owner", "a1"),
+		line(call{id: "m3", read: 30000, created: 2000}),
+		handBack("a1"),
+		line(call{id: "m4", read: 32000, created: 3000, spawns: []string{"#12 verifier"}}),
+		launched("#12 verifier", "a2"),
+		line(call{id: "m5", read: 35000, created: 1000}),
+		handBack("a2"),
+		line(call{id: "m6", read: 36000, created: 4000, spawns: []string{"#13 owner"}}),
+		launched("#13 owner", "a3"),
+		line(call{id: "m7", read: 40000, created: 1000}),
+		handBack("a3"),
+		line(call{id: "m8", read: 41000, created: 3000, spawns: []string{"group 1 interrogate"}}),
+		launched("group 1 interrogate", "a4"),
+		line(call{id: "m9", read: 44000, created: 1000}),
+		handBack("a4"),
+		line(call{id: "m10", read: 45000, created: 2000}),
+		line(call{id: "m11", read: 47000, created: 1000}),
 	)
 }
 
-func TestSpawnsAreAttributedToTicketsAndRootGrowthIsMeasuredFromTheFirstSpawn(t *testing.T) {
-	path := writeProgramSession(t)
-
-	report, err := transcript.Analyze(path)
+func TestSpawnsAreLabeledByTheirTicketFindingOrGroup(t *testing.T) {
+	report, err := transcript.Analyze(writeProgramSession(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	want := []transcript.Spawn{
-		{Description: "#12 owner", Ticket: 12, RootContext: 30000},
-		{Description: "#12 verifier", Ticket: 12, RootContext: 34000},
-		{Description: "#13 owner", Ticket: 13, RootContext: 34000},
-		{Description: "group 1 interrogate", Ticket: 0, RootContext: 36000},
+		{Description: "#12 owner", Label: "#12", RootContext: 30000},
+		{Description: "#12 verifier", Label: "#12", RootContext: 35000},
+		{Description: "#13 owner", Label: "#13", RootContext: 40000},
+		{Description: "group 1 interrogate", Label: "group 1", RootContext: 44000},
 	}
 	if len(report.Spawns) != len(want) {
 		t.Fatalf("spawns = %+v, want %+v", report.Spawns, want)
@@ -116,17 +148,73 @@ func TestSpawnsAreAttributedToTicketsAndRootGrowthIsMeasuredFromTheFirstSpawn(t 
 			t.Errorf("spawn %d = %+v, want %+v", i, report.Spawns[i], want[i])
 		}
 	}
-	if report.Tickets != 2 {
-		t.Errorf("tickets = %d, want 2", report.Tickets)
+}
+
+func TestRootGrowthGoesToTheAgentWhoseBriefOrHandBackCausedIt(t *testing.T) {
+	report, err := transcript.Analyze(writeProgramSession(t))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if report.SpawnsPerTicket != 2 {
-		t.Errorf("spawns per ticket = %v, want 2", report.SpawnsPerTicket)
+
+	want := []transcript.Phase{
+		{Label: "setup", Spawns: 0, Growth: 9999},
+		{Label: "#12", Spawns: 2, Growth: 10000},
+		{Label: "#13", Spawns: 1, Growth: 4000},
+		{Label: "group 1", Spawns: 1, Growth: 1000},
+		{Label: "finish", Spawns: 0, Growth: 3000},
 	}
-	if report.GrowthPerTicket != 5000 {
-		t.Errorf("growth per ticket = %d, want 5000", report.GrowthPerTicket)
+	if len(report.Phases) != len(want) {
+		t.Fatalf("phases = %+v, want %+v", report.Phases, want)
 	}
-	if report.ProjectedAt20Tickets != 130000 {
-		t.Errorf("projection at 20 tickets = %d, want 130000", report.ProjectedAt20Tickets)
+	for i := range want {
+		if report.Phases[i] != want[i] {
+			t.Errorf("phase %d = %+v, want %+v", i, report.Phases[i], want[i])
+		}
+	}
+}
+
+func TestProjectionAddsMarginalTicketsAnInterrogatePerFiveTicketsAndFinish(t *testing.T) {
+	report, err := transcript.Analyze(writeProgramSession(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if report.Base != 30000 || report.PerTicket != 7000 || report.PerGroup != 1000 || report.Finish != 3000 {
+		t.Errorf("base, per ticket, per group, finish = %d, %d, %d, %d, want 30000, 7000, 1000, 3000",
+			report.Base, report.PerTicket, report.PerGroup, report.Finish)
+	}
+	if report.Tickets != 2 || report.SpawnsPerTicket != 1.5 {
+		t.Errorf("tickets, spawns per ticket = %d, %v, want 2, 1.5", report.Tickets, report.SpawnsPerTicket)
+	}
+	if got := report.Projection(20); got != 177000 {
+		t.Errorf("projection at 20 tickets = %d, want 177000", got)
+	}
+	if got := report.TicketsWithin(200000); got != 23 {
+		t.Errorf("tickets within 200000 = %d, want 23", got)
+	}
+}
+
+func TestFindingRowsCountTowardTheirGroup(t *testing.T) {
+	path := writeSession(t, t.TempDir(),
+		line(call{id: "m1", input: 1, created: 9999, spawns: []string{"#5 owner"}}),
+		launched("#5 owner", "a1"),
+		handBack("a1"),
+		line(call{id: "m2", read: 10000, created: 2000, spawns: []string{"group 1 interrogate"}}),
+		launched("group 1 interrogate", "a2"),
+		handBack("a2"),
+		line(call{id: "m3", read: 12000, created: 1000, spawns: []string{"g1-1 owner"}}),
+		launched("g1-1 owner", "a3"),
+		handBack("a3"),
+		line(call{id: "m4", read: 13000, created: 3000}),
+	)
+
+	report, err := transcript.Analyze(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Tickets != 1 || report.PerTicket != 2000 || report.PerGroup != 1000 || report.Finish != 3000 {
+		t.Errorf("tickets, per ticket, per group, finish = %d, %d, %d, %d, want 1, 2000, 1000, 3000",
+			report.Tickets, report.PerTicket, report.PerGroup, report.Finish)
 	}
 }
 
@@ -188,26 +276,5 @@ func TestSessionWithoutSubagentsHasNoAgents(t *testing.T) {
 	}
 	if len(report.Agents) != 0 {
 		t.Errorf("agents = %+v, want none", report.Agents)
-	}
-}
-
-func TestRootGrowthBetweenSpawnsIsAttributedToTheTicketOfTheLaterSpawn(t *testing.T) {
-	report, err := transcript.Analyze(writeProgramSession(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	want := []transcript.Phase{
-		{Ticket: 0, Spawns: 1, Growth: 2000},
-		{Ticket: 12, Spawns: 2, Growth: 4000},
-		{Ticket: 13, Spawns: 1, Growth: 0},
-	}
-	if len(report.Phases) != len(want) {
-		t.Fatalf("phases = %+v, want %+v", report.Phases, want)
-	}
-	for i := range want {
-		if report.Phases[i] != want[i] {
-			t.Errorf("phase %d = %+v, want %+v", i, report.Phases[i], want[i])
-		}
 	}
 }
