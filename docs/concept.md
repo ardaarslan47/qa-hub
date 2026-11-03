@@ -22,6 +22,5 @@ Temel fikir: Case bir **tanım**. Bir koşudaki her çalıştırma o tanımdan d
 
 ## Açık sorular
 
-- **Tech stack:** Henüz seçilmedi. İlk adımda seçilecek.
 - **AFK agent aracı:** Issue'ları otomatik işleyecek döngünün nasıl kurulacağı belli değil. Sandcastle bir örnek.
 - **Deney alanı duruşu:** Agent'lara geriye dönük uyumluluk ve cesur refactor konusunda ne söyleneceği, QA Hub'daki ilk oturumda konuşulacak.
