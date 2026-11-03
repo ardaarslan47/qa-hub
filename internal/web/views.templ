@@ -1,0 +1,48 @@
+package web
+
+import "github.com/ardaarslan47/qa-hub/internal/qahub"
+
+type caseForm struct {
+	Title string
+	Error string
+}
+
+templ layout(title string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ title } - QA Hub</title>
+		</head>
+		<body>
+			<header>
+				<nav aria-label="Main">
+					<a href="/cases">Cases</a>
+				</nav>
+			</header>
+			<main>
+				<h1>{ title }</h1>
+				{ children... }
+			</main>
+		</body>
+	</html>
+}
+
+templ casesPage(cases []qahub.Case, form caseForm) {
+	@layout("Cases") {
+		<form method="post" action="/cases">
+			<label for="case-title">Title</label>
+			<input id="case-title" name="title" type="text" value={ form.Title }/>
+			<button type="submit">Create case</button>
+			if form.Error != "" {
+				<p role="alert">{ form.Error }</p>
+			}
+		</form>
+		<ul aria-label="Cases">
+			for _, c := range cases {
+				<li>{ c.Title }</li>
+			}
+		</ul>
+	}
+}
