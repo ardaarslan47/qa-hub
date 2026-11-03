@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/a-h/templ"
 
@@ -38,9 +37,8 @@ func (s *server) startRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) showRun(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	if err != nil {
-		http.NotFound(w, r)
+	id, ok := pathID(w, r)
+	if !ok {
 		return
 	}
 	run, err := s.store.GetRun(r.Context(), id)

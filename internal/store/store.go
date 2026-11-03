@@ -123,7 +123,7 @@ func (s *Store) GetRun(ctx context.Context, id int64) (domain.Run, error) {
 
 func (s *Store) ListExecutions(ctx context.Context, runID int64) ([]domain.Execution, error) {
 	rows, err := s.db.QueryContext(ctx,
-		`SELECT id, run_id, case_id, title FROM executions WHERE run_id = ? ORDER BY id`, runID)
+		`SELECT id, run_id, case_id, title, status FROM executions WHERE run_id = ? ORDER BY id`, runID)
 	if err != nil {
 		return nil, err
 	}
@@ -132,10 +132,28 @@ func (s *Store) ListExecutions(ctx context.Context, runID int64) ([]domain.Execu
 	var executions []domain.Execution
 	for rows.Next() {
 		var e domain.Execution
-		if err := rows.Scan(&e.ID, &e.RunID, &e.CaseID, &e.Title); err != nil {
+		var storedStatus sql.NullString
+		if err := rows.Scan(&e.ID, &e.RunID, &e.CaseID, &e.Title, &storedStatus); err != nil {
 			return nil, err
+		}
+		if storedStatus.Valid {
+			status, err := domain.ParseStatus(storedStatus.String)
+			if err != nil {
+				return nil, fmt.Errorf("execution %d: stored status: %v", e.ID, err)
+			}
+			e.Status = &status
 		}
 		executions = append(executions, e)
 	}
 	return executions, rows.Err()
+}
+
+func (s *Store) SetExecutionStatus(ctx context.Context, id int64, status domain.Status) (int64, error) {
+	var runID int64
+	err := s.db.QueryRowContext(ctx,
+		`UPDATE executions SET status = ? WHERE id = ? RETURNING run_id`, status.String(), id).Scan(&runID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, domain.ErrExecutionNotFound
+	}
+	return runID, err
 }

@@ -114,6 +114,40 @@ func (a *runningApp) executionsOf(run runLink) []executionRow {
 	return executionRowsIn(a.t, a.page(run.Path))
 }
 
+func (a *runningApp) statusButtonRequest(run runLink, title, label string) (path string, form url.Values) {
+	a.t.Helper()
+	item := executionItemIn(a.t, a.page(run.Path), title)
+	forms := findAll(item, func(n *html.Node) bool { return n.Data == "form" })
+	if len(forms) != 1 {
+		a.t.Fatalf("execution %q has %d forms, want one", title, len(forms))
+	}
+	buttons := findAll(forms[0], func(n *html.Node) bool {
+		return n.Data == "button" && strings.TrimSpace(textOf(n)) == label
+	})
+	if len(buttons) != 1 {
+		a.t.Fatalf("execution %q has %d %q buttons, want one", title, len(buttons), label)
+	}
+	return attr(forms[0], "action"), url.Values{attr(buttons[0], "name"): {attr(buttons[0], "value")}}
+}
+
+func (a *runningApp) pressStatusButton(run runLink, title, label string) {
+	a.t.Helper()
+	path, form := a.statusButtonRequest(run, title, label)
+	status, _ := a.postForm(path, form)
+	if status != http.StatusOK {
+		a.t.Fatalf("press %q on %q: status %d, want %d", label, title, status, http.StatusOK)
+	}
+}
+
+func (a *runningApp) postForm(path string, form url.Values) (status int, body string) {
+	a.t.Helper()
+	resp, err := http.PostForm(a.server.URL+path, form)
+	if err != nil {
+		a.t.Fatalf("post %s: %v", path, err)
+	}
+	return resp.StatusCode, readBody(a.t, resp)
+}
+
 func (a *runningApp) onlyRun() runLink {
 	a.t.Helper()
 	links := a.runLinks()
@@ -168,7 +202,7 @@ func runLinksIn(t *testing.T, page string) []runLink {
 	for _, item := range listItemsIn(t, page, "Runs") {
 		anchors := findAll(item, func(n *html.Node) bool { return n.Data == "a" })
 		if len(anchors) != 1 {
-			t.Fatalf("run item has %d links, want one", len(anchors))
+			t.Fatalf("runs list entry has %d links, want one", len(anchors))
 		}
 		links = append(links, runLink{Name: strings.TrimSpace(textOf(anchors[0])), Path: attr(anchors[0], "href")})
 	}
@@ -179,13 +213,33 @@ func executionRowsIn(t *testing.T, page string) []executionRow {
 	t.Helper()
 	rows := []executionRow{}
 	for _, item := range listItemsIn(t, page, "Executions") {
-		cells := findAll(item, func(n *html.Node) bool { return n.Data == "span" })
-		if len(cells) != 2 {
-			t.Fatalf("execution item has %d spans, want title and label", len(cells))
-		}
-		rows = append(rows, executionRow{Title: strings.TrimSpace(textOf(cells[0])), Label: strings.TrimSpace(textOf(cells[1]))})
+		rows = append(rows, executionRowOf(t, item))
 	}
 	return rows
+}
+
+func executionRowOf(t *testing.T, item *html.Node) executionRow {
+	t.Helper()
+	titles := findAll(item, func(n *html.Node) bool { return n.Data == "span" })
+	labels := findAll(item, func(n *html.Node) bool { return n.Data == "output" })
+	if len(titles) != 1 || len(labels) != 1 {
+		t.Fatalf("execution item has %d titles and %d status labels, want one of each", len(titles), len(labels))
+	}
+	return executionRow{Title: strings.TrimSpace(textOf(titles[0])), Label: strings.TrimSpace(textOf(labels[0]))}
+}
+
+func executionItemIn(t *testing.T, page, title string) *html.Node {
+	t.Helper()
+	var matches []*html.Node
+	for _, item := range listItemsIn(t, page, "Executions") {
+		if executionRowOf(t, item).Title == title {
+			matches = append(matches, item)
+		}
+	}
+	if len(matches) != 1 {
+		t.Fatalf("page has %d executions titled %q, want one", len(matches), title)
+	}
+	return matches[0]
 }
 
 func alertTextIn(t *testing.T, page string) string {

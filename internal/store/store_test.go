@@ -2,6 +2,7 @@ package store_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -47,8 +48,13 @@ func TestDatabaseRefusesABlankRunNameEvenWhenParsingWasSkipped(t *testing.T) {
 		t.Fatalf("create case: %v", err)
 	}
 
-	if err := st.StartRun(ctx, domain.RunName{}); err == nil {
+	err = st.StartRun(ctx, domain.RunName{})
+
+	if err == nil {
 		t.Fatal("start run with a zero RunName succeeded, want an error")
+	}
+	if errors.Is(err, domain.ErrNoCases) {
+		t.Fatalf("start run with a zero RunName failed with %v, want the database CHECK to refuse it", err)
 	}
 
 	runs, err := st.ListRuns(ctx)
@@ -57,5 +63,48 @@ func TestDatabaseRefusesABlankRunNameEvenWhenParsingWasSkipped(t *testing.T) {
 	}
 	if len(runs) != 0 {
 		t.Fatalf("runs = %v, want none", runs)
+	}
+}
+
+func TestDatabaseRefusesAStatusOutsideTheClosedSetEvenWhenParsingWasSkipped(t *testing.T) {
+	ctx := context.Background()
+	st := openStore(t)
+	title, err := domain.ParseCaseTitle("Login works")
+	if err != nil {
+		t.Fatalf("parse title: %v", err)
+	}
+	if err := st.CreateCase(ctx, title); err != nil {
+		t.Fatalf("create case: %v", err)
+	}
+	name, err := domain.ParseRunName("Sprint 1")
+	if err != nil {
+		t.Fatalf("parse name: %v", err)
+	}
+	if err := st.StartRun(ctx, name); err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	runs, err := st.ListRuns(ctx)
+	if err != nil || len(runs) != 1 {
+		t.Fatalf("list runs = %v, %v, want one run", runs, err)
+	}
+	executions, err := st.ListExecutions(ctx, runs[0].ID)
+	if err != nil || len(executions) != 1 {
+		t.Fatalf("list executions = %v, %v, want one execution", executions, err)
+	}
+
+	_, err = st.SetExecutionStatus(ctx, executions[0].ID, domain.Status{})
+
+	if err == nil {
+		t.Fatal("set a zero Status succeeded, want an error")
+	}
+	if errors.Is(err, domain.ErrExecutionNotFound) {
+		t.Fatalf("set a zero Status failed with %v, want the database CHECK to refuse it", err)
+	}
+	after, err := st.ListExecutions(ctx, runs[0].ID)
+	if err != nil {
+		t.Fatalf("list executions: %v", err)
+	}
+	if after[0].Status != nil {
+		t.Fatalf("status = %v, want none", *after[0].Status)
 	}
 }

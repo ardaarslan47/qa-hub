@@ -43,7 +43,15 @@ templ runPage(run domain.Run, executions []domain.Execution) {
 		<h1>{ run.Name }</h1>
 		<ul aria-label="Executions">
 			for _, e := range executions {
-				<li><span>{ e.Title }</span> <span>Untested</span></li>
+				<li id={ executionAnchor(e.ID) }>
+					<span>{ e.Title }</span>
+					<output>{ statusLabel(e) }</output>
+					<form method="post" action={ executionStatusPath(e.ID) }>
+						for _, status := range domain.Statuses() {
+							<button type="submit" name="status" value={ status.String() }>{ status.String() }</button>
+						}
+					</form>
+				</li>
 			}
 		</ul>
 	}

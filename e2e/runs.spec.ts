@@ -1,5 +1,5 @@
 import { test, expect } from './fixtures';
-import { createCase, startRun } from './steps';
+import { createCase, expectExecutions, startRun } from './steps';
 
 test('starting a run shows it in the list and its page has an Untested execution per case', async ({ page }) => {
   await createCase(page, 'Login works');
@@ -15,9 +15,9 @@ test('starting a run shows it in the list and its page has an Untested execution
   await runs.getByRole('link', { name: 'Sprint 1' }).click();
 
   await expect(page.getByRole('heading', { name: 'Sprint 1' })).toBeVisible();
-  await expect(page.getByRole('list', { name: 'Executions' }).getByRole('listitem')).toHaveText([
-    'Login works Untested',
-    'Logout works Untested',
+  await expectExecutions(page, [
+    ['Login works', 'Untested'],
+    ['Logout works', 'Untested'],
   ]);
 });
 
@@ -42,12 +42,13 @@ test('a case created after a run started is not in that run but is in a new run'
   await createCase(page, 'Logout works');
   await startRun(page, 'Sprint 2');
 
-  const executions = page.getByRole('list', { name: 'Executions' }).getByRole('listitem');
-
   await page.getByRole('link', { name: 'Sprint 1' }).click();
-  await expect(executions).toHaveText(['Login works Untested']);
+  await expectExecutions(page, [['Login works', 'Untested']]);
 
   await page.goto('/runs');
   await page.getByRole('link', { name: 'Sprint 2' }).click();
-  await expect(executions).toHaveText(['Login works Untested', 'Logout works Untested']);
+  await expectExecutions(page, [
+    ['Login works', 'Untested'],
+    ['Logout works', 'Untested'],
+  ]);
 });
