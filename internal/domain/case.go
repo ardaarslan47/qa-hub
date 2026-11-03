@@ -1,9 +1,6 @@
 package domain
 
-import (
-	"errors"
-	"strings"
-)
+import "strings"
 
 type Case struct {
 	ID    int64
@@ -17,7 +14,7 @@ type CaseTitle struct {
 func ParseCaseTitle(raw string) (CaseTitle, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
-		return CaseTitle{}, errors.New("Title is required")
+		return CaseTitle{}, UserError("Title is required")
 	}
 	return CaseTitle{value: trimmed}, nil
 }

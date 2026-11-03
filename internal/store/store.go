@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"embed"
+	"errors"
 	"fmt"
 	"io/fs"
 
@@ -61,4 +62,80 @@ func (s *Store) ListCases(ctx context.Context) ([]domain.Case, error) {
 		cases = append(cases, c)
 	}
 	return cases, rows.Err()
+}
+
+func (s *Store) StartRun(ctx context.Context, name domain.RunName) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	runResult, err := tx.ExecContext(ctx, `INSERT INTO runs (name) VALUES (?)`, name.String())
+	if err != nil {
+		return err
+	}
+	runID, err := runResult.LastInsertId()
+	if err != nil {
+		return err
+	}
+	executionsResult, err := tx.ExecContext(ctx,
+		`INSERT INTO executions (run_id, case_id, title) SELECT ?, id, title FROM cases ORDER BY id`, runID)
+	if err != nil {
+		return err
+	}
+	executionCount, err := executionsResult.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if executionCount == 0 {
+		return domain.ErrNoCases
+	}
+	return tx.Commit()
+}
+
+func (s *Store) ListRuns(ctx context.Context) ([]domain.Run, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT id, name FROM runs ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var runs []domain.Run
+	for rows.Next() {
+		var r domain.Run
+		if err := rows.Scan(&r.ID, &r.Name); err != nil {
+			return nil, err
+		}
+		runs = append(runs, r)
+	}
+	return runs, rows.Err()
+}
+
+func (s *Store) GetRun(ctx context.Context, id int64) (domain.Run, error) {
+	var r domain.Run
+	err := s.db.QueryRowContext(ctx, `SELECT id, name FROM runs WHERE id = ?`, id).Scan(&r.ID, &r.Name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.Run{}, domain.ErrRunNotFound
+	}
+	return r, err
+}
+
+func (s *Store) ListExecutions(ctx context.Context, runID int64) ([]domain.Execution, error) {
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT id, run_id, case_id, title FROM executions WHERE run_id = ? ORDER BY id`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var executions []domain.Execution
+	for rows.Next() {
+		var e domain.Execution
+		if err := rows.Scan(&e.ID, &e.RunID, &e.CaseID, &e.Title); err != nil {
+			return nil, err
+		}
+		executions = append(executions, e)
+	}
+	return executions, rows.Err()
 }

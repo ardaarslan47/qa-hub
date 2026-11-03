@@ -53,21 +53,74 @@ func (a *runningApp) createCase(title string) (status int, body string) {
 	return resp.StatusCode, readBody(a.t, resp)
 }
 
-func (a *runningApp) casesPage() string {
-	a.t.Helper()
-	resp, err := http.Get(a.server.URL + "/cases")
-	if err != nil {
-		a.t.Fatalf("get cases: %v", err)
-	}
-	if resp.StatusCode != http.StatusOK {
-		a.t.Fatalf("get cases: status %d", resp.StatusCode)
-	}
-	return readBody(a.t, resp)
-}
-
 func (a *runningApp) caseTitles() []string {
 	a.t.Helper()
-	return caseTitlesIn(a.t, a.casesPage())
+	return caseTitlesIn(a.t, a.page("/cases"))
+}
+
+type runLink struct {
+	Name string
+	Path string
+}
+
+type executionRow struct {
+	Title string
+	Label string
+}
+
+func (a *runningApp) startRun(name string) (status int, body string) {
+	a.t.Helper()
+	resp, err := http.PostForm(a.server.URL+"/runs", url.Values{"name": {name}})
+	if err != nil {
+		a.t.Fatalf("post run: %v", err)
+	}
+	return resp.StatusCode, readBody(a.t, resp)
+}
+
+func (a *runningApp) get(path string) (status int, body string) {
+	a.t.Helper()
+	resp, err := http.Get(a.server.URL + path)
+	if err != nil {
+		a.t.Fatalf("get %s: %v", path, err)
+	}
+	return resp.StatusCode, readBody(a.t, resp)
+}
+
+func (a *runningApp) page(path string) string {
+	a.t.Helper()
+	status, body := a.get(path)
+	if status != http.StatusOK {
+		a.t.Fatalf("get %s: status %d", path, status)
+	}
+	return body
+}
+
+func (a *runningApp) runLinks() []runLink {
+	a.t.Helper()
+	return runLinksIn(a.t, a.page("/runs"))
+}
+
+func (a *runningApp) runNames() []string {
+	a.t.Helper()
+	names := []string{}
+	for _, link := range a.runLinks() {
+		names = append(names, link.Name)
+	}
+	return names
+}
+
+func (a *runningApp) executionsOf(run runLink) []executionRow {
+	a.t.Helper()
+	return executionRowsIn(a.t, a.page(run.Path))
+}
+
+func (a *runningApp) onlyRun() runLink {
+	a.t.Helper()
+	links := a.runLinks()
+	if len(links) != 1 {
+		a.t.Fatalf("runs = %v, want exactly one", links)
+	}
+	return links[0]
 }
 
 func readBody(t *testing.T, resp *http.Response) string {
@@ -89,17 +142,50 @@ func parsePage(t *testing.T, page string) *html.Node {
 	return doc
 }
 
+func listItemsIn(t *testing.T, page, label string) []*html.Node {
+	t.Helper()
+	var items []*html.Node
+	for _, list := range findAll(parsePage(t, page), func(n *html.Node) bool {
+		return n.Data == "ul" && attr(n, "aria-label") == label
+	}) {
+		items = append(items, findAll(list, func(n *html.Node) bool { return n.Data == "li" })...)
+	}
+	return items
+}
+
 func caseTitlesIn(t *testing.T, page string) []string {
 	t.Helper()
 	titles := []string{}
-	for _, list := range findAll(parsePage(t, page), func(n *html.Node) bool {
-		return n.Data == "ul" && attr(n, "aria-label") == "Cases"
-	}) {
-		for _, item := range findAll(list, func(n *html.Node) bool { return n.Data == "li" }) {
-			titles = append(titles, strings.TrimSpace(textOf(item)))
-		}
+	for _, item := range listItemsIn(t, page, "Cases") {
+		titles = append(titles, strings.TrimSpace(textOf(item)))
 	}
 	return titles
+}
+
+func runLinksIn(t *testing.T, page string) []runLink {
+	t.Helper()
+	links := []runLink{}
+	for _, item := range listItemsIn(t, page, "Runs") {
+		anchors := findAll(item, func(n *html.Node) bool { return n.Data == "a" })
+		if len(anchors) != 1 {
+			t.Fatalf("run item has %d links, want one", len(anchors))
+		}
+		links = append(links, runLink{Name: strings.TrimSpace(textOf(anchors[0])), Path: attr(anchors[0], "href")})
+	}
+	return links
+}
+
+func executionRowsIn(t *testing.T, page string) []executionRow {
+	t.Helper()
+	rows := []executionRow{}
+	for _, item := range listItemsIn(t, page, "Executions") {
+		cells := findAll(item, func(n *html.Node) bool { return n.Data == "span" })
+		if len(cells) != 2 {
+			t.Fatalf("execution item has %d spans, want title and label", len(cells))
+		}
+		rows = append(rows, executionRow{Title: strings.TrimSpace(textOf(cells[0])), Label: strings.TrimSpace(textOf(cells[1]))})
+	}
+	return rows
 }
 
 func alertTextIn(t *testing.T, page string) string {

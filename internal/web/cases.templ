@@ -7,22 +7,6 @@ type caseForm struct {
 	Error string
 }
 
-templ layout(pageTitle string) {
-	<!DOCTYPE html>
-	<html lang="en">
-		<head>
-			<meta charset="utf-8"/>
-			<meta name="viewport" content="width=device-width, initial-scale=1"/>
-			<title>{ pageTitle } - QA Hub</title>
-		</head>
-		<body>
-			<main>
-				{ children... }
-			</main>
-		</body>
-	</html>
-}
-
 templ casesPage(cases []domain.Case, form caseForm) {
 	@layout("Cases") {
 		<h1>Cases</h1>

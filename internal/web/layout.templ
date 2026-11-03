@@ -1,0 +1,21 @@
+package web
+
+templ layout(pageTitle string) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<title>{ pageTitle } - QA Hub</title>
+		</head>
+		<body>
+			<nav aria-label="Main">
+				<a href="/cases">Cases</a>
+				<a href="/runs">Runs</a>
+			</nav>
+			<main>
+				{ children... }
+			</main>
+		</body>
+	</html>
+}
