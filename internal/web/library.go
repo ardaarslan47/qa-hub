@@ -4,28 +4,37 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
+	"strconv"
 
 	"github.com/ardaarslan47/qa-hub/internal/qahub"
 )
 
-const libraryPath = "/library"
+const (
+	libraryPath              = "/library"
+	preconditionUnknownError = "A Precondition must be a case in the Library."
+	preconditionCycleError   = "A case cannot be its own Precondition, directly or through other cases."
+)
 
 func casePath(id qahub.CaseID) string {
 	return fmt.Sprintf("%s/%d", libraryPath, id)
 }
 
 type caseForm struct {
-	Title         string
-	Description   string
-	Priority      qahub.Priority
-	TitleError    string
-	PriorityError string
+	Title              string
+	Description        string
+	Priority           qahub.Priority
+	Preconditions      []qahub.CaseID
+	TitleError         string
+	PriorityError      string
+	PreconditionsError string
 }
 
 type caseInput struct {
-	title       qahub.Title
-	description qahub.Description
-	priority    qahub.Priority
+	title         qahub.Title
+	description   qahub.Description
+	priority      qahub.Priority
+	preconditions []qahub.CaseID
 }
 
 type caseHandler func(http.ResponseWriter, *http.Request, qahub.Case)
@@ -62,8 +71,42 @@ func readCaseForm(r *http.Request, fallback qahub.Priority) (caseForm, caseInput
 	} else {
 		form.Priority = priority
 	}
-	input := caseInput{title: title, description: qahub.ParseDescription(form.Description), priority: priority}
-	return form, input, titleErr == nil && priorityErr == nil
+	preconditions, preconditionsOK := parsePreconditions(r.PostForm["preconditions"])
+	form.Preconditions = preconditions
+	if !preconditionsOK {
+		form.PreconditionsError = preconditionUnknownError
+	}
+	input := caseInput{
+		title:         title,
+		description:   qahub.ParseDescription(form.Description),
+		priority:      priority,
+		preconditions: preconditions,
+	}
+	return form, input, titleErr == nil && priorityErr == nil && preconditionsOK
+}
+
+func parsePreconditions(values []string) ([]qahub.CaseID, bool) {
+	ok := true
+	var ids []qahub.CaseID
+	for _, value := range values {
+		id, err := strconv.ParseInt(value, 10, 64)
+		if err != nil {
+			ok = false
+			continue
+		}
+		ids = append(ids, qahub.CaseID(id))
+	}
+	return ids, ok
+}
+
+func preconditionRejection(err error) string {
+	switch {
+	case errors.Is(err, qahub.ErrPreconditionNotFound):
+		return preconditionUnknownError
+	case errors.Is(err, qahub.ErrPreconditionCycle):
+		return preconditionCycleError
+	}
+	return ""
 }
 
 func (h handler) showLibrary(w http.ResponseWriter, r *http.Request) {
@@ -76,7 +119,12 @@ func (h handler) createCase(w http.ResponseWriter, r *http.Request) {
 		h.renderLibrary(w, r, http.StatusUnprocessableEntity, form)
 		return
 	}
-	if err := h.store.CreateCase(r.Context(), input.title, input.description, input.priority); err != nil {
+	err := h.store.CreateCase(r.Context(), input.title, input.description, input.priority, input.preconditions)
+	if form.PreconditionsError = preconditionRejection(err); form.PreconditionsError != "" {
+		h.renderLibrary(w, r, http.StatusUnprocessableEntity, form)
+		return
+	}
+	if err != nil {
 		serverError(w, r, err)
 		return
 	}
@@ -84,17 +132,29 @@ func (h handler) createCase(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h handler) showCase(w http.ResponseWriter, r *http.Request, c qahub.Case) {
+	preconditions, err := h.store.Preconditions(r.Context(), c.ID)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
 	form := caseForm{Title: c.Title.String(), Description: c.Description.String(), Priority: c.Priority}
-	render(w, r, http.StatusOK, casePage(c, form))
+	for _, p := range preconditions {
+		form.Preconditions = append(form.Preconditions, p.ID)
+	}
+	h.renderCase(w, r, http.StatusOK, c, form)
 }
 
 func (h handler) editCase(w http.ResponseWriter, r *http.Request, c qahub.Case) {
 	form, input, ok := readCaseForm(r, c.Priority)
 	if !ok {
-		render(w, r, http.StatusUnprocessableEntity, casePage(c, form))
+		h.renderCase(w, r, http.StatusUnprocessableEntity, c, form)
 		return
 	}
-	err := h.store.UpdateCase(r.Context(), c.ID, input.title, input.description, input.priority)
+	err := h.store.UpdateCase(r.Context(), c.ID, input.title, input.description, input.priority, input.preconditions)
+	if form.PreconditionsError = preconditionRejection(err); form.PreconditionsError != "" {
+		h.renderCase(w, r, http.StatusUnprocessableEntity, c, form)
+		return
+	}
 	if errors.Is(err, qahub.ErrCaseNotFound) {
 		http.NotFound(w, r)
 		return
@@ -113,4 +173,19 @@ func (h handler) renderLibrary(w http.ResponseWriter, r *http.Request, status in
 		return
 	}
 	render(w, r, status, libraryPage(cases, form))
+}
+
+func (h handler) renderCase(w http.ResponseWriter, r *http.Request, status int, c qahub.Case, form caseForm) {
+	preconditions, err := h.store.Preconditions(r.Context(), c.ID)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	cases, err := h.store.Cases(r.Context())
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	choices := slices.DeleteFunc(cases, func(other qahub.Case) bool { return other.ID == c.ID })
+	render(w, r, status, casePage(c, preconditions, choices, form))
 }

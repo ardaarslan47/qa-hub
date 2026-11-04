@@ -42,6 +42,7 @@ main > form {
 }
 
 main > form > label,
+main > form > details,
 main > form > [role="alert"] {
   grid-column: 1 / -1;
 }

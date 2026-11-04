@@ -8,7 +8,7 @@ templ runPage(project qahub.Project, run qahub.Run, executions []qahub.Execution
 		<ul aria-label="Executions">
 			for _, e := range executions {
 				<li>
-					<span data-testid="execution"><span>{ e.Title.String() }</span> <span>{ statusLabel(e) }</span></span>
+					<span data-testid="execution"><span data-testid="execution-title">{ e.Title.String() }</span> <span>{ statusLabel(e) }</span></span>
 					<form method="post" action={ templ.SafeURL(statusPath(project.ID, run.ID, e.ID)) }>
 						for _, s := range qahub.Statuses() {
 							<button type="submit" name="status" value={ s.String() }>{ s.String() }</button>
@@ -20,6 +20,14 @@ templ runPage(project qahub.Project, run qahub.Run, executions []qahub.Execution
 						if e.Description.String() != "" {
 							<dt>Description</dt>
 							<dd data-testid="execution-description">{ e.Description.String() }</dd>
+						}
+						if len(e.Preconditions) > 0 {
+							<dt>Preconditions</dt>
+							<dd>
+								for _, title := range e.Preconditions {
+									<div data-testid="execution-precondition">{ title.String() }</div>
+								}
+							</dd>
 						}
 					</dl>
 				</li>

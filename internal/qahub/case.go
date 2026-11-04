@@ -36,15 +36,34 @@ type Case struct {
 	Priority    Priority
 }
 
-func (s *Store) CreateCase(ctx context.Context, title Title, description Description, priority Priority) error {
-	_, err := s.db.ExecContext(ctx,
+func (s *Store) CreateCase(ctx context.Context, title Title, description Description, priority Priority, preconditions []CaseID) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx,
 		"INSERT INTO cases (title, description, priority) VALUES (?, ?, ?)",
 		title.text, description.text, priority.name)
-	return err
+	if err != nil {
+		return err
+	}
+	id, err := res.LastInsertId()
+	if err != nil {
+		return err
+	}
+	if err := linkPreconditions(ctx, tx, CaseID(id), preconditions); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) Cases(ctx context.Context) ([]Case, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, title, description, priority FROM cases ORDER BY id")
+	return s.queryCases(ctx, "SELECT id, title, description, priority FROM cases ORDER BY id")
+}
+
+func (s *Store) queryCases(ctx context.Context, query string, args ...any) ([]Case, error) {
+	rows, err := s.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -70,8 +89,13 @@ func (s *Store) FindCase(ctx context.Context, id CaseID) (Case, error) {
 	return c, err
 }
 
-func (s *Store) UpdateCase(ctx context.Context, id CaseID, title Title, description Description, priority Priority) error {
-	res, err := s.db.ExecContext(ctx,
+func (s *Store) UpdateCase(ctx context.Context, id CaseID, title Title, description Description, priority Priority, preconditions []CaseID) error {
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	res, err := tx.ExecContext(ctx,
 		"UPDATE cases SET title = ?, description = ?, priority = ? WHERE id = ?",
 		title.text, description.text, priority.name, id)
 	if err != nil {
@@ -84,5 +108,11 @@ func (s *Store) UpdateCase(ctx context.Context, id CaseID, title Title, descript
 	if matched == 0 {
 		return ErrCaseNotFound
 	}
-	return nil
+	if _, err := tx.ExecContext(ctx, "DELETE FROM case_preconditions WHERE case_id = ?", id); err != nil {
+		return err
+	}
+	if err := linkPreconditions(ctx, tx, id, preconditions); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

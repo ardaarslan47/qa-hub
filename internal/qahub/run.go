@@ -39,11 +39,12 @@ type Run struct {
 type ExecutionID int64
 
 type Execution struct {
-	ID          ExecutionID
-	Title       Title
-	Description Description
-	Priority    Priority
-	Status      *Status
+	ID            ExecutionID
+	Title         Title
+	Description   Description
+	Priority      Priority
+	Preconditions []Title
+	Status        *Status
 }
 
 func (s *Store) StartRun(ctx context.Context, project ProjectID, name RunName) error {
@@ -73,6 +74,18 @@ func (s *Store) StartRun(ctx context.Context, project ProjectID, name RunName) e
 	}
 	if snapshotted == 0 {
 		return ErrNoCases
+	}
+	_, err = tx.ExecContext(ctx,
+		`INSERT INTO execution_preconditions (execution_id, title)
+		SELECT e.id, c.title
+		FROM executions e
+		JOIN case_preconditions link ON link.case_id = e.case_id
+		JOIN cases c ON c.id = link.precondition_id
+		WHERE e.run_id = ?
+		ORDER BY e.id, c.id`,
+		runID)
+	if err != nil {
+		return err
 	}
 	return tx.Commit()
 }
@@ -104,6 +117,21 @@ func (s *Store) FindRun(ctx context.Context, project ProjectID, id RunID) (Run, 
 }
 
 func (s *Store) Executions(ctx context.Context, project ProjectID, run RunID) ([]Execution, error) {
+	executions, err := s.executionRows(ctx, project, run)
+	if err != nil {
+		return nil, err
+	}
+	copies, err := s.preconditionCopies(ctx, project, run)
+	if err != nil {
+		return nil, err
+	}
+	for i := range executions {
+		executions[i].Preconditions = copies[executions[i].ID]
+	}
+	return executions, nil
+}
+
+func (s *Store) executionRows(ctx context.Context, project ProjectID, run RunID) ([]Execution, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT e.id, e.title, e.description, e.priority, e.status
 		FROM executions e
@@ -127,6 +155,30 @@ func (s *Store) Executions(ctx context.Context, project ProjectID, run RunID) ([
 		executions = append(executions, e)
 	}
 	return executions, rows.Err()
+}
+
+func (s *Store) preconditionCopies(ctx context.Context, project ProjectID, run RunID) (map[ExecutionID][]Title, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT p.execution_id, p.title
+		FROM execution_preconditions p
+		JOIN executions e ON e.id = p.execution_id
+		JOIN runs r ON r.id = e.run_id
+		WHERE e.run_id = ? AND r.project_id = ?
+		ORDER BY p.id`, run, project)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	copies := map[ExecutionID][]Title{}
+	for rows.Next() {
+		var execution ExecutionID
+		var title Title
+		if err := rows.Scan(&execution, &title.text); err != nil {
+			return nil, err
+		}
+		copies[execution] = append(copies[execution], title)
+	}
+	return copies, rows.Err()
 }
 
 func (s *Store) EnterStatus(ctx context.Context, project ProjectID, run RunID, execution ExecutionID, status Status) error {

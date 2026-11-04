@@ -33,15 +33,21 @@ export async function openLibrary(page: Page) {
   await menuLink(page, 'Library').click();
 }
 
+async function selectPreconditions(page: Page, titles: string[]) {
+  await page.getByText('Select Preconditions').click();
+  for (const title of titles) await page.getByLabel(title, { exact: true }).check();
+}
+
 export async function createCase(
   page: Page,
   title: string,
-  fields: { description?: string; priority?: 'Low' | 'Medium' | 'High' } = {},
+  fields: { description?: string; priority?: 'Low' | 'Medium' | 'High'; preconditions?: string[] } = {},
 ) {
   await openLibrary(page);
   await page.getByLabel('Title').fill(title);
   if (fields.description !== undefined) await page.getByLabel('Description').fill(fields.description);
   if (fields.priority !== undefined) await page.getByLabel('Priority').selectOption(fields.priority);
+  if (fields.preconditions !== undefined) await selectPreconditions(page, fields.preconditions);
   await page.getByRole('button', { name: 'Create case' }).click();
 }
 
@@ -57,13 +63,18 @@ export async function openCase(page: Page, title: string) {
 export async function editCase(
   page: Page,
   title: string,
-  fields: { title?: string; description?: string; priority?: 'Low' | 'Medium' | 'High' },
+  fields: { title?: string; description?: string; priority?: 'Low' | 'Medium' | 'High'; preconditions?: string[] },
 ) {
   await openCase(page, title);
   if (fields.title !== undefined) await page.getByLabel('Title').fill(fields.title);
   if (fields.description !== undefined) await page.getByLabel('Description').fill(fields.description);
   if (fields.priority !== undefined) await page.getByLabel('Priority').selectOption(fields.priority);
+  if (fields.preconditions !== undefined) await selectPreconditions(page, fields.preconditions);
   await page.getByRole('button', { name: 'Save case' }).click();
+}
+
+export function casePreconditions(page: Page) {
+  return page.getByRole('list', { name: 'Preconditions' }).getByRole('listitem');
 }
 
 export function caseList(page: Page) {
@@ -98,7 +109,8 @@ export function executionList(page: Page) {
 }
 
 export function executionRow(page: Page, title: string) {
-  return executionRows(page).filter({ hasText: title });
+  const heading = page.getByTestId('execution-title').and(page.getByText(title, { exact: true }));
+  return executionRows(page).filter({ has: heading });
 }
 
 export async function enterStatus(page: Page, title: string, status: 'Passed' | 'Failed') {

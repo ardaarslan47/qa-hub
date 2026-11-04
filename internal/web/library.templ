@@ -1,12 +1,17 @@
 package web
 
-import "github.com/ardaarslan47/qa-hub/internal/qahub"
+import (
+	"fmt"
+	"slices"
+
+	"github.com/ardaarslan47/qa-hub/internal/qahub"
+)
 
 templ libraryPage(cases []qahub.Case, form caseForm) {
 	@layout("Library", nil) {
 		<h1>Library</h1>
 		<form method="post" action={ templ.SafeURL(libraryPath) }>
-			@caseFields(form, "Create case")
+			@caseFields(form, cases, "Create case")
 		</form>
 		if len(cases) == 0 {
 			<p>No cases yet.</p>
@@ -20,16 +25,24 @@ templ libraryPage(cases []qahub.Case, form caseForm) {
 	}
 }
 
-templ casePage(c qahub.Case, form caseForm) {
+templ casePage(c qahub.Case, preconditions []qahub.Case, choices []qahub.Case, form caseForm) {
 	@layout(c.Title.String(), nil) {
 		<h1>{ c.Title.String() }</h1>
+		if len(preconditions) > 0 {
+			<h2>Preconditions</h2>
+			<ul aria-label="Preconditions">
+				for _, p := range preconditions {
+					<li><a href={ templ.SafeURL(casePath(p.ID)) }>{ p.Title.String() }</a></li>
+				}
+			</ul>
+		}
 		<form method="post" action={ templ.SafeURL(casePath(c.ID)) }>
-			@caseFields(form, "Save case")
+			@caseFields(form, choices, "Save case")
 		</form>
 	}
 }
 
-templ caseFields(form caseForm, submit string) {
+templ caseFields(form caseForm, choices []qahub.Case, submit string) {
 	<label for="title">Title</label>
 	<input
 		id="title"
@@ -57,11 +70,30 @@ templ caseFields(form caseForm, submit string) {
 			<option value={ p.String() } selected?={ p == form.Priority }>{ p.String() }</option>
 		}
 	</select>
+	if len(choices) > 0 {
+		<details open?={ form.PreconditionsError != "" }>
+			<summary>Select Preconditions</summary>
+			for _, c := range choices {
+				<label>
+					<input
+						type="checkbox"
+						name="preconditions"
+						value={ fmt.Sprint(c.ID) }
+						checked?={ slices.Contains(form.Preconditions, c.ID) }
+					/>
+					{ c.Title.String() }
+				</label>
+			}
+		</details>
+	}
 	<button type="submit">{ submit }</button>
 	if form.TitleError != "" {
 		<p id="title-error" role="alert">{ form.TitleError }</p>
 	}
 	if form.PriorityError != "" {
 		<p id="priority-error" role="alert">{ form.PriorityError }</p>
+	}
+	if form.PreconditionsError != "" {
+		<p id="preconditions-error" role="alert">{ form.PreconditionsError }</p>
 	}
 }
