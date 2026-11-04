@@ -4,12 +4,16 @@ Test case'lerin yazıldığı, run'lar içinde çalıştırıldığı ve status'
 
 ## Language
 
+**Project**:
+Case'lerin ve run'ların ait olduğu, adı olan izole alan. Her case ve her run tam olarak bir project'e aittir, project'ler arasında paylaşılmaz.
+_Avoid_: Proje, workspace
+
 **Case**:
 Neyin, nasıl test edileceğinin tanımı. Kendisi hiçbir zaman çalıştırılmaz ve status taşımaz.
 _Avoid_: Test, test case, vaka, senaryo
 
 **Run**:
-Adı olan bir çalıştırma oturumu. Başladığı anda var olan her case için bir execution içerir.
+Adı olan bir çalıştırma oturumu. Başladığı anda project'inde var olan her case için bir execution içerir.
 _Avoid_: Test run, cycle, koşu, koşum
 
 **Execution**:

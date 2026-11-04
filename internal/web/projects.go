@@ -7,6 +7,28 @@ import (
 	"github.com/ardaarslan47/qa-hub/internal/qahub"
 )
 
+type projectHandler func(http.ResponseWriter, *http.Request, qahub.Project)
+
+func (h handler) inProject(next projectHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, ok := pathID(r, "id")
+		if !ok {
+			http.NotFound(w, r)
+			return
+		}
+		project, err := h.store.FindProject(r.Context(), qahub.ProjectID(id))
+		if errors.Is(err, qahub.ErrProjectNotFound) {
+			http.NotFound(w, r)
+			return
+		}
+		if err != nil {
+			serverError(w, r, err)
+			return
+		}
+		next(w, r, project)
+	}
+}
+
 func (h handler) listProjects(w http.ResponseWriter, r *http.Request) {
 	h.renderProjects(w, r, http.StatusOK, "")
 }
@@ -29,21 +51,7 @@ func (h handler) createProject(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/projects", http.StatusSeeOther)
 }
 
-func (h handler) showProject(w http.ResponseWriter, r *http.Request) {
-	id, ok := pathID(r, "id")
-	if !ok {
-		http.NotFound(w, r)
-		return
-	}
-	project, err := h.store.FindProject(r.Context(), qahub.ProjectID(id))
-	if errors.Is(err, qahub.ErrProjectNotFound) {
-		http.NotFound(w, r)
-		return
-	}
-	if err != nil {
-		serverError(w, r, err)
-		return
-	}
+func (h handler) showProject(w http.ResponseWriter, r *http.Request, project qahub.Project) {
 	render(w, r, http.StatusOK, projectPage(project))
 }
 

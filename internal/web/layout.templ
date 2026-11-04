@@ -1,6 +1,8 @@
 package web
 
-templ layout(title string) {
+import "github.com/ardaarslan47/qa-hub/internal/qahub"
+
+templ layout(title string, project *qahub.Project) {
 	<!DOCTYPE html>
 	<html lang="en">
 		<head>
@@ -18,6 +20,9 @@ templ layout(title string) {
 		<body>
 			<nav aria-label="Main">
 				<a href="/projects">Projects</a>
+				if project != nil {
+					<a href={ templ.SafeURL(projectPath(project.ID)) }>{ project.Name.String() }</a>
+				}
 			</nav>
 			<main>
 				{ children... }

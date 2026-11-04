@@ -2,10 +2,10 @@ package web
 
 import "github.com/ardaarslan47/qa-hub/internal/qahub"
 
-templ casesPage(cases []qahub.Case, titleError string) {
-	@layout("Cases") {
+templ casesPage(project qahub.Project, cases []qahub.Case, titleError string) {
+	@layout("Cases", &project) {
 		<h1>Cases</h1>
-		<form method="post" action="/cases">
+		<form method="post" action={ templ.SafeURL(casesPath(project.ID)) }>
 			<label for="title">Title</label>
 			<input
 				id="title"

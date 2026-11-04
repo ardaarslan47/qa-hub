@@ -1,15 +1,11 @@
 package web
 
-import (
-	"fmt"
+import "github.com/ardaarslan47/qa-hub/internal/qahub"
 
-	"github.com/ardaarslan47/qa-hub/internal/qahub"
-)
-
-templ runsPage(runs []qahub.Run, formError string) {
-	@layout("Runs") {
+templ runsPage(project qahub.Project, runs []qahub.Run, formError string) {
+	@layout("Runs", &project) {
 		<h1>Runs</h1>
-		<form method="post" action="/runs">
+		<form method="post" action={ templ.SafeURL(runsPath(project.ID)) }>
 			<label for="name">Name</label>
 			<input
 				id="name"
@@ -31,7 +27,7 @@ templ runsPage(runs []qahub.Run, formError string) {
 		} else {
 			<ul aria-label="Runs">
 				for _, run := range runs {
-					<li><a href={ templ.SafeURL(fmt.Sprintf("/runs/%d", run.ID)) }>{ run.Name.String() }</a></li>
+					<li><a href={ templ.SafeURL(runPath(project.ID, run.ID)) }>{ run.Name.String() }</a></li>
 				}
 			</ul>
 		}

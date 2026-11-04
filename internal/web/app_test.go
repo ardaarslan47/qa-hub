@@ -94,25 +94,47 @@ func (a *app) projectNames() []string {
 	return names
 }
 
-func (a *app) createCase(title string) (int, string) {
-	a.t.Helper()
-	return a.do(http.MethodPost, "/cases", url.Values{"title": {title}})
+type project struct {
+	*app
+	path string
 }
 
-func (a *app) mustCreateCase(title string) {
+func (a *app) inProject(name string) project {
 	a.t.Helper()
-	if status, body := a.createCase(title); status != http.StatusOK {
-		a.t.Fatalf("create case %q: status %d\n%s", title, status, body)
+	for _, p := range a.projects() {
+		if p.Text == name {
+			return project{app: a, path: p.Href}
+		}
+	}
+	a.t.Fatalf("no project named %q", name)
+	return project{}
+}
+
+func (a *app) inNewProject(name string) project {
+	a.t.Helper()
+	a.mustCreateProject(name)
+	return a.inProject(name)
+}
+
+func (p project) createCase(title string) (int, string) {
+	p.t.Helper()
+	return p.do(http.MethodPost, p.path+"/cases", url.Values{"title": {title}})
+}
+
+func (p project) mustCreateCase(title string) {
+	p.t.Helper()
+	if status, body := p.createCase(title); status != http.StatusOK {
+		p.t.Fatalf("create case %q: status %d\n%s", title, status, body)
 	}
 }
 
-func (a *app) caseTitles() []string {
-	a.t.Helper()
-	status, body := a.do(http.MethodGet, "/cases", nil)
+func (p project) caseTitles() []string {
+	p.t.Helper()
+	status, body := p.do(http.MethodGet, p.path+"/cases", nil)
 	if status != http.StatusOK {
-		a.t.Fatalf("GET /cases: status %d\n%s", status, body)
+		p.t.Fatalf("GET %s/cases: status %d\n%s", p.path, status, body)
 	}
-	return listItems(a.t, body, "Cases")
+	return listItems(p.t, body, "Cases")
 }
 
 type link struct {
@@ -120,31 +142,31 @@ type link struct {
 	Href string
 }
 
-func (a *app) startRun(name string) (int, string) {
-	a.t.Helper()
-	return a.do(http.MethodPost, "/runs", url.Values{"name": {name}})
+func (p project) startRun(name string) (int, string) {
+	p.t.Helper()
+	return p.do(http.MethodPost, p.path+"/runs", url.Values{"name": {name}})
 }
 
-func (a *app) mustStartRun(name string) {
-	a.t.Helper()
-	if status, body := a.startRun(name); status != http.StatusOK {
-		a.t.Fatalf("start run %q: status %d\n%s", name, status, body)
+func (p project) mustStartRun(name string) {
+	p.t.Helper()
+	if status, body := p.startRun(name); status != http.StatusOK {
+		p.t.Fatalf("start run %q: status %d\n%s", name, status, body)
 	}
 }
 
-func (a *app) runs() []link {
-	a.t.Helper()
-	status, body := a.do(http.MethodGet, "/runs", nil)
+func (p project) runs() []link {
+	p.t.Helper()
+	status, body := p.do(http.MethodGet, p.path+"/runs", nil)
 	if status != http.StatusOK {
-		a.t.Fatalf("GET /runs: status %d\n%s", status, body)
+		p.t.Fatalf("GET %s/runs: status %d\n%s", p.path, status, body)
 	}
-	return listLinks(a.t, body, "Runs")
+	return listLinks(p.t, body, "Runs")
 }
 
-func (a *app) runNames() []string {
-	a.t.Helper()
+func (p project) runNames() []string {
+	p.t.Helper()
 	var names []string
-	for _, r := range a.runs() {
+	for _, r := range p.runs() {
 		names = append(names, r.Text)
 	}
 	return names

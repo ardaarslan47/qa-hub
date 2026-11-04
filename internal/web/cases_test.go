@@ -8,7 +8,7 @@ import (
 )
 
 func TestCreatedCasesAppearInListInCreationOrder(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 
 	a.mustCreateCase("Login works")
 	a.mustCreateCase(`<b>Cart</b> & "checkout"`)
@@ -20,7 +20,7 @@ func TestCreatedCasesAppearInListInCreationOrder(t *testing.T) {
 }
 
 func TestBlankTitleIsRejectedWithAnError(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 
 	for _, title := range []string{"", "   ", "\t\r\n", "\u00a0\u3000", "\u200b\ufeff\u2060"} {
@@ -39,7 +39,7 @@ func TestBlankTitleIsRejectedWithAnError(t *testing.T) {
 }
 
 func TestTwoCasesMayShareATitle(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 
 	a.mustCreateCase("Login works")
 	a.mustCreateCase("Login works")
@@ -51,12 +51,12 @@ func TestTwoCasesMayShareATitle(t *testing.T) {
 
 func TestCasesSurviveRestart(t *testing.T) {
 	dbPath := tempDB(t)
-	first := startApp(t, dbPath)
+	first := startApp(t, dbPath).inNewProject("Mobile")
 	first.mustCreateCase("Login works")
 	first.mustCreateCase("Logout works")
 	first.stop()
 
-	second := startApp(t, dbPath)
+	second := startApp(t, dbPath).inProject("Mobile")
 
 	if got, want := second.caseTitles(), []string{"Login works", "Logout works"}; !slices.Equal(got, want) {
 		t.Errorf("case titles after restart = %q, want %q", got, want)
@@ -64,7 +64,7 @@ func TestCasesSurviveRestart(t *testing.T) {
 }
 
 func TestTitleIsTrimmed(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 
 	a.mustCreateCase(" \t Login works\u200b\n")
 

@@ -141,14 +141,14 @@ func TestRootRedirectsToProjects(t *testing.T) {
 
 func TestEveryPageLinksToProjects(t *testing.T) {
 	a := startApp(t, tempDB(t))
-	a.mustCreateProject("Mobile")
-	a.mustCreateCase("Login works")
-	a.mustStartRun("Sprint 1")
-	run := a.runs()[0]
+	p := a.inNewProject("Mobile")
+	p.mustCreateCase("Login works")
+	p.mustStartRun("Sprint 1")
+	run := p.runs()[0]
 	_, rejected := a.createProject("")
 
 	pages := map[string]string{"rejected POST /projects": rejected}
-	for _, path := range []string{"/projects", a.projects()[0].Href, "/cases", "/runs", run.Href} {
+	for _, path := range []string{"/projects", p.path, p.path + "/cases", p.path + "/runs", run.Href} {
 		status, body := a.do(http.MethodGet, path, nil)
 		if status != http.StatusOK {
 			t.Fatalf("GET %s: status %d\n%s", path, status, body)
@@ -158,7 +158,7 @@ func TestEveryPageLinksToProjects(t *testing.T) {
 
 	want := link{Text: "Projects", Href: "/projects"}
 	for name, body := range pages {
-		if got := navLinks(t, body); !slices.Contains(got, want) {
+		if got := navLinks(t, body, "Main"); !slices.Contains(got, want) {
 			t.Errorf("%s: nav links = %v, want to contain %v", name, got, want)
 		}
 	}
@@ -179,7 +179,7 @@ func heading(t *testing.T, page string) string {
 	return ""
 }
 
-func navLinks(t *testing.T, page string) []link {
+func navLinks(t *testing.T, page, label string) []link {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(page))
 	if err != nil {
@@ -187,7 +187,7 @@ func navLinks(t *testing.T, page string) []link {
 	}
 	var links []link
 	for n := range doc.Descendants() {
-		if n.Type == html.ElementNode && n.Data == "nav" && attr(n, "aria-label") == "Main" {
+		if n.Type == html.ElementNode && n.Data == "nav" && attr(n, "aria-label") == label {
 			for a := range n.Descendants() {
 				if a.Type == html.ElementNode && a.Data == "a" {
 					links = append(links, link{Text: text(a), Href: attr(a, "href")})

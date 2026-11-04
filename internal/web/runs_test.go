@@ -8,7 +8,7 @@ import (
 )
 
 func TestStartedRunAppearsInRunList(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 	a.mustCreateCase("Logout works")
 
@@ -20,7 +20,7 @@ func TestStartedRunAppearsInRunList(t *testing.T) {
 }
 
 func TestRunPageHasAnUntestedExecutionPerCase(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 	a.mustCreateCase("Logout works")
 	a.mustStartRun("Sprint 1")
@@ -34,7 +34,7 @@ func TestRunPageHasAnUntestedExecutionPerCase(t *testing.T) {
 }
 
 func TestBlankRunNameIsRejectedWithAnError(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 
 	for _, name := range []string{"", "   ", "\t\r\n", "\u00a0\u3000", "\u200b\ufeff\u2060"} {
@@ -53,7 +53,7 @@ func TestBlankRunNameIsRejectedWithAnError(t *testing.T) {
 }
 
 func TestCaseCreatedAfterRunStartedStaysOutOfThatRun(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 	a.mustCreateCase("Logout works")
 	a.mustStartRun("Sprint 1")
@@ -76,7 +76,7 @@ func TestCaseCreatedAfterRunStartedStaysOutOfThatRun(t *testing.T) {
 }
 
 func TestTwoRunsMayShareAName(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 
 	a.mustStartRun("Sprint 1")
@@ -92,7 +92,7 @@ func TestTwoRunsMayShareAName(t *testing.T) {
 }
 
 func TestRunNameIsTrimmed(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 
 	a.mustStartRun(" \t Sprint 1​\n")
@@ -104,7 +104,7 @@ func TestRunNameIsTrimmed(t *testing.T) {
 
 func TestRunsAndExecutionsSurviveRestart(t *testing.T) {
 	dbPath := tempDB(t)
-	first := startApp(t, dbPath)
+	first := startApp(t, dbPath).inNewProject("Mobile")
 	first.mustCreateCase("Login works")
 	first.mustCreateCase("Logout works")
 	first.mustStartRun("Sprint 1")
@@ -112,7 +112,7 @@ func TestRunsAndExecutionsSurviveRestart(t *testing.T) {
 	first.mustStartRun("Sprint 2")
 	first.stop()
 
-	second := startApp(t, dbPath)
+	second := startApp(t, dbPath).inProject("Mobile")
 
 	if got, want := second.runNames(), []string{"Sprint 1", "Sprint 2"}; !slices.Equal(got, want) {
 		t.Fatalf("run names after restart = %q, want %q", got, want)
@@ -130,19 +130,19 @@ func TestRunsAndExecutionsSurviveRestart(t *testing.T) {
 }
 
 func TestUnknownRunIsNotFound(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 	a.mustStartRun("Sprint 1")
 
-	for _, path := range []string{"/runs/2", "/runs/0", "/runs/-1", "/runs/abc", "/runs/1x"} {
-		if status, _ := a.do(http.MethodGet, path, nil); status != http.StatusNotFound {
-			t.Errorf("GET %s: status %d, want %d", path, status, http.StatusNotFound)
+	for _, id := range []string{"2", "0", "-1", "abc", "1x"} {
+		if status, _ := a.do(http.MethodGet, a.path+"/runs/"+id, nil); status != http.StatusNotFound {
+			t.Errorf("GET run %s: status %d, want %d", id, status, http.StatusNotFound)
 		}
 	}
 }
 
 func TestRunCannotStartWithoutCases(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 
 	status, body := a.startRun("Sprint 1")
 

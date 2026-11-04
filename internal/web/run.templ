@@ -1,19 +1,15 @@
 package web
 
-import (
-	"fmt"
+import "github.com/ardaarslan47/qa-hub/internal/qahub"
 
-	"github.com/ardaarslan47/qa-hub/internal/qahub"
-)
-
-templ runPage(run qahub.Run, executions []qahub.Execution) {
-	@layout(run.Name.String()) {
+templ runPage(project qahub.Project, run qahub.Run, executions []qahub.Execution) {
+	@layout(run.Name.String(), &project) {
 		<h1>{ run.Name.String() }</h1>
 		<ul aria-label="Executions">
 			for _, e := range executions {
 				<li>
 					<span data-testid="execution"><span>{ e.Title.String() }</span> <span>{ statusLabel(e) }</span></span>
-					<form method="post" action={ templ.SafeURL(fmt.Sprintf("/runs/%d/executions/%d/status", run.ID, e.ID)) }>
+					<form method="post" action={ templ.SafeURL(statusPath(project.ID, run.ID, e.ID)) }>
 						for _, s := range qahub.Statuses() {
 							<button type="submit" name="status" value={ s.String() }>{ s.String() }</button>
 						}

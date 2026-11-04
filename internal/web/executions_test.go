@@ -8,7 +8,7 @@ import (
 )
 
 func TestEnteredStatusesAppearOnRunPage(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 	a.mustCreateCase("Logout works")
 	a.mustStartRun("Sprint 1")
@@ -24,7 +24,7 @@ func TestEnteredStatusesAppearOnRunPage(t *testing.T) {
 }
 
 func TestNewStatusReplacesThePreviousOne(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 	a.mustCreateCase("Logout works")
 	a.mustStartRun("Sprint 1")
@@ -43,7 +43,7 @@ func TestNewStatusReplacesThePreviousOne(t *testing.T) {
 }
 
 func TestStatusesBelongToTheirOwnRun(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 	a.mustStartRun("Sprint 1")
 	a.mustStartRun("Sprint 2")
@@ -61,7 +61,7 @@ func TestStatusesBelongToTheirOwnRun(t *testing.T) {
 
 func TestStatusesSurviveRestart(t *testing.T) {
 	dbPath := tempDB(t)
-	first := startApp(t, dbPath)
+	first := startApp(t, dbPath).inNewProject("Mobile")
 	first.mustCreateCase("Login works")
 	first.mustCreateCase("Logout works")
 	first.mustCreateCase("Reset password works")
@@ -72,7 +72,7 @@ func TestStatusesSurviveRestart(t *testing.T) {
 	first.mustEnterStatus(run, "Logout works", "Failed")
 	first.stop()
 
-	second := startApp(t, dbPath)
+	second := startApp(t, dbPath).inProject("Mobile")
 
 	want := []string{"Login works Passed", "Logout works Failed", "Reset password works Untested"}
 	if got := second.executions(second.runs()[0]); !slices.Equal(got, want) {
@@ -81,7 +81,7 @@ func TestStatusesSurviveRestart(t *testing.T) {
 }
 
 func TestOnlyPassedAndFailedAreAccepted(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 	a.mustCreateCase("Logout works")
 	a.mustStartRun("Sprint 1")
@@ -103,7 +103,7 @@ func TestOnlyPassedAndFailedAreAccepted(t *testing.T) {
 }
 
 func TestStatusForMissingStatusFieldIsRejected(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 	a.mustStartRun("Sprint 1")
 	run := a.runs()[0]
@@ -119,7 +119,7 @@ func TestStatusForMissingStatusFieldIsRejected(t *testing.T) {
 }
 
 func TestStatusCannotBeEnteredOnAnExecutionOutsideTheRun(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 	a.mustCreateCase("Logout works")
 	a.mustStartRun("Sprint 1")
@@ -138,7 +138,7 @@ func TestStatusCannotBeEnteredOnAnExecutionOutsideTheRun(t *testing.T) {
 		"/runs/1/executions/abc/status",
 	}
 	for _, path := range paths {
-		if code, _ := a.do(http.MethodPost, path, form); code != http.StatusNotFound {
+		if code, _ := a.do(http.MethodPost, a.path+path, form); code != http.StatusNotFound {
 			t.Errorf("POST %s: status %d, want %d", path, code, http.StatusNotFound)
 		}
 	}
@@ -152,7 +152,7 @@ func TestStatusCannotBeEnteredOnAnExecutionOutsideTheRun(t *testing.T) {
 }
 
 func TestRunPageOffersPassedAndFailedForEveryExecution(t *testing.T) {
-	a := startApp(t, tempDB(t))
+	a := startApp(t, tempDB(t)).inNewProject("Mobile")
 	a.mustCreateCase("Login works")
 	a.mustCreateCase("Logout works")
 	a.mustStartRun("Sprint 1")

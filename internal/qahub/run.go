@@ -44,13 +44,13 @@ type Execution struct {
 	Status *Status
 }
 
-func (s *Store) StartRun(ctx context.Context, name RunName) error {
+func (s *Store) StartRun(ctx context.Context, project ProjectID, name RunName) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-	res, err := tx.ExecContext(ctx, "INSERT INTO runs (name) VALUES (?)", name.text)
+	res, err := tx.ExecContext(ctx, "INSERT INTO runs (project_id, name) VALUES (?, ?)", project, name.text)
 	if err != nil {
 		return err
 	}
@@ -59,7 +59,8 @@ func (s *Store) StartRun(ctx context.Context, name RunName) error {
 		return err
 	}
 	res, err = tx.ExecContext(ctx,
-		"INSERT INTO executions (run_id, case_id, title) SELECT ?, id, title FROM cases ORDER BY id", runID)
+		"INSERT INTO executions (run_id, case_id, title) SELECT ?, id, title FROM cases WHERE project_id = ? ORDER BY id",
+		runID, project)
 	if err != nil {
 		return err
 	}
@@ -73,8 +74,8 @@ func (s *Store) StartRun(ctx context.Context, name RunName) error {
 	return tx.Commit()
 }
 
-func (s *Store) Runs(ctx context.Context) ([]Run, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, name FROM runs ORDER BY id")
+func (s *Store) Runs(ctx context.Context, project ProjectID) ([]Run, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, name FROM runs WHERE project_id = ? ORDER BY id", project)
 	if err != nil {
 		return nil, err
 	}
@@ -90,17 +91,22 @@ func (s *Store) Runs(ctx context.Context) ([]Run, error) {
 	return runs, rows.Err()
 }
 
-func (s *Store) FindRun(ctx context.Context, id RunID) (Run, error) {
+func (s *Store) FindRun(ctx context.Context, project ProjectID, id RunID) (Run, error) {
 	r := Run{ID: id}
-	err := s.db.QueryRowContext(ctx, "SELECT name FROM runs WHERE id = ?", id).Scan(&r.Name.text)
+	err := s.db.QueryRowContext(ctx, "SELECT name FROM runs WHERE id = ? AND project_id = ?", id, project).Scan(&r.Name.text)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Run{}, ErrRunNotFound
 	}
 	return r, err
 }
 
-func (s *Store) Executions(ctx context.Context, run RunID) ([]Execution, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, title, status FROM executions WHERE run_id = ? ORDER BY id", run)
+func (s *Store) Executions(ctx context.Context, project ProjectID, run RunID) ([]Execution, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT e.id, e.title, e.status
+		FROM executions e
+		JOIN runs r ON r.id = e.run_id
+		WHERE e.run_id = ? AND r.project_id = ?
+		ORDER BY e.id`, run, project)
 	if err != nil {
 		return nil, err
 	}
@@ -120,9 +126,11 @@ func (s *Store) Executions(ctx context.Context, run RunID) ([]Execution, error) 
 	return executions, rows.Err()
 }
 
-func (s *Store) EnterStatus(ctx context.Context, run RunID, execution ExecutionID, status Status) error {
-	res, err := s.db.ExecContext(ctx,
-		"UPDATE executions SET status = ? WHERE id = ? AND run_id = ?", status.name, execution, run)
+func (s *Store) EnterStatus(ctx context.Context, project ProjectID, run RunID, execution ExecutionID, status Status) error {
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE executions SET status = ?
+		WHERE id = ? AND run_id = (SELECT id FROM runs WHERE id = ? AND project_id = ?)`,
+		status.name, execution, run, project)
 	if err != nil {
 		return err
 	}

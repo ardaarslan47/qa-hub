@@ -1,13 +1,9 @@
 package web
 
-import (
-	"fmt"
-
-	"github.com/ardaarslan47/qa-hub/internal/qahub"
-)
+import "github.com/ardaarslan47/qa-hub/internal/qahub"
 
 templ projectsPage(projects []qahub.Project, formError string) {
-	@layout("Projects") {
+	@layout("Projects", nil) {
 		<h1>Projects</h1>
 		<form method="post" action="/projects">
 			<label for="name">Name</label>
@@ -31,7 +27,7 @@ templ projectsPage(projects []qahub.Project, formError string) {
 		} else {
 			<ul aria-label="Projects">
 				for _, project := range projects {
-					<li><a href={ templ.SafeURL(fmt.Sprintf("/projects/%d", project.ID)) }>{ project.Name.String() }</a></li>
+					<li><a href={ templ.SafeURL(projectPath(project.ID)) }>{ project.Name.String() }</a></li>
 				}
 			</ul>
 		}
@@ -39,7 +35,11 @@ templ projectsPage(projects []qahub.Project, formError string) {
 }
 
 templ projectPage(project qahub.Project) {
-	@layout(project.Name.String()) {
+	@layout(project.Name.String(), nil) {
 		<h1>{ project.Name.String() }</h1>
+		<nav aria-label="Project">
+			<a href={ templ.SafeURL(casesPath(project.ID)) }>Cases</a>
+			<a href={ templ.SafeURL(runsPath(project.ID)) }>Runs</a>
+		</nav>
 	}
 }
