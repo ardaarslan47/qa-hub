@@ -16,7 +16,10 @@ type handler struct {
 func New(store *qahub.Store) http.Handler {
 	h := handler{store: store}
 	mux := http.NewServeMux()
-	mux.Handle("GET /{$}", http.RedirectHandler("/cases", http.StatusSeeOther))
+	mux.Handle("GET /{$}", http.RedirectHandler("/projects", http.StatusSeeOther))
+	mux.HandleFunc("GET /projects", h.listProjects)
+	mux.HandleFunc("POST /projects", h.createProject)
+	mux.HandleFunc("GET /projects/{id}", h.showProject)
 	mux.HandleFunc("GET /cases", h.listCases)
 	mux.HandleFunc("POST /cases", h.createCase)
 	mux.HandleFunc("GET /runs", h.listRuns)

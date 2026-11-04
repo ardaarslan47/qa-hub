@@ -1,5 +1,15 @@
 import type { Page } from '@playwright/test';
 
+export async function createProject(page: Page, name: string) {
+  await page.goto('/projects');
+  await page.getByLabel('Name').fill(name);
+  await page.getByRole('button', { name: 'Create project' }).click();
+}
+
+export function projectList(page: Page) {
+  return page.getByRole('list', { name: 'Projects' }).getByRole('listitem');
+}
+
 export async function createCase(page: Page, title: string) {
   await page.goto('/cases');
   await page.getByLabel('Title').fill(title);

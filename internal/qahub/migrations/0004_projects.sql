@@ -1,0 +1,4 @@
+CREATE TABLE projects (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK (name <> '')
+);

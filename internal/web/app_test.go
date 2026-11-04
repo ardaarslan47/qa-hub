@@ -64,6 +64,36 @@ func (a *app) do(method, path string, form url.Values) (int, string) {
 	return resp.StatusCode, string(body)
 }
 
+func (a *app) createProject(name string) (int, string) {
+	a.t.Helper()
+	return a.do(http.MethodPost, "/projects", url.Values{"name": {name}})
+}
+
+func (a *app) mustCreateProject(name string) {
+	a.t.Helper()
+	if status, body := a.createProject(name); status != http.StatusOK {
+		a.t.Fatalf("create project %q: status %d\n%s", name, status, body)
+	}
+}
+
+func (a *app) projects() []link {
+	a.t.Helper()
+	status, body := a.do(http.MethodGet, "/projects", nil)
+	if status != http.StatusOK {
+		a.t.Fatalf("GET /projects: status %d\n%s", status, body)
+	}
+	return listLinks(a.t, body, "Projects")
+}
+
+func (a *app) projectNames() []string {
+	a.t.Helper()
+	var names []string
+	for _, p := range a.projects() {
+		names = append(names, p.Text)
+	}
+	return names
+}
+
 func (a *app) createCase(title string) (int, string) {
 	a.t.Helper()
 	return a.do(http.MethodPost, "/cases", url.Values{"title": {title}})
