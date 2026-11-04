@@ -118,23 +118,106 @@ func (a *app) inNewProject(name string) project {
 
 func (a *app) createCase(title string) (int, string) {
 	a.t.Helper()
-	return a.do(http.MethodPost, "/library", url.Values{"title": {title}})
+	return a.createCaseWith(title, "", "Medium")
+}
+
+func (a *app) createCaseWith(title, description, priority string) (int, string) {
+	a.t.Helper()
+	form := url.Values{"title": {title}, "description": {description}, "priority": {priority}}
+	return a.do(http.MethodPost, "/library", form)
 }
 
 func (a *app) mustCreateCase(title string) {
 	a.t.Helper()
-	if status, body := a.createCase(title); status != http.StatusOK {
+	a.mustCreateCaseWith(title, "", "Medium")
+}
+
+func (a *app) mustCreateCaseWith(title, description, priority string) {
+	a.t.Helper()
+	if status, body := a.createCaseWith(title, description, priority); status != http.StatusOK {
 		a.t.Fatalf("create case %q: status %d\n%s", title, status, body)
 	}
 }
 
-func (a *app) caseTitles() []string {
+type libraryCase struct {
+	Title    string
+	Priority string
+}
+
+func (a *app) libraryCases() []libraryCase {
 	a.t.Helper()
 	status, body := a.do(http.MethodGet, "/library", nil)
 	if status != http.StatusOK {
 		a.t.Fatalf("GET /library: status %d\n%s", status, body)
 	}
-	return listItems(a.t, body, "Cases")
+	var cases []libraryCase
+	for _, li := range listRows(a.t, body, "Cases") {
+		cases = append(cases, libraryCase{Title: testID(li, "case-title"), Priority: testID(li, "case-priority")})
+	}
+	return cases
+}
+
+func (a *app) caseTitles() []string {
+	a.t.Helper()
+	var titles []string
+	for _, c := range a.libraryCases() {
+		titles = append(titles, c.Title)
+	}
+	return titles
+}
+
+type option struct {
+	Value    string
+	Selected bool
+}
+
+func (a *app) priorityOptions() []option {
+	a.t.Helper()
+	status, body := a.do(http.MethodGet, "/library", nil)
+	if status != http.StatusOK {
+		a.t.Fatalf("GET /library: status %d\n%s", status, body)
+	}
+	return priorityOptionsOf(a.t, body)
+}
+
+func priorityOptionsOf(t *testing.T, page string) []option {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var options []option
+	for n := range doc.Descendants() {
+		if n.Type == html.ElementNode && n.Data == "select" && attr(n, "name") == "priority" {
+			for o := range n.Descendants() {
+				if o.Type == html.ElementNode && o.Data == "option" {
+					options = append(options, option{Value: attr(o, "value"), Selected: hasAttr(o, "selected")})
+				}
+			}
+		}
+	}
+	return options
+}
+
+func fieldValue(t *testing.T, page, name string) string {
+	t.Helper()
+	doc, err := html.Parse(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for n := range doc.Descendants() {
+		if n.Type != html.ElementNode || attr(n, "name") != name {
+			continue
+		}
+		switch n.Data {
+		case "input":
+			return attr(n, "value")
+		case "textarea":
+			return text(n)
+		}
+	}
+	t.Fatalf("no field named %q\n%s", name, page)
+	return ""
 }
 
 type link struct {
@@ -189,6 +272,27 @@ func (a *app) executions(run link) []string {
 		}
 	}
 	return summaries
+}
+
+type executionFields struct {
+	Priority    string
+	Description string
+}
+
+func (a *app) executionFields(run link) []executionFields {
+	a.t.Helper()
+	status, body := a.do(http.MethodGet, run.Href, nil)
+	if status != http.StatusOK {
+		a.t.Fatalf("GET %s: status %d\n%s", run.Href, status, body)
+	}
+	var fields []executionFields
+	for _, li := range listRows(a.t, body, "Executions") {
+		fields = append(fields, executionFields{
+			Priority:    testID(li, "execution-priority"),
+			Description: testID(li, "execution-description"),
+		})
+	}
+	return fields
 }
 
 func (a *app) enterStatus(run link, title, status string) (int, string) {
@@ -276,23 +380,32 @@ func listLinks(t *testing.T, page, label string) []link {
 	return links
 }
 
-func listItems(t *testing.T, page, label string) []string {
+func listRows(t *testing.T, page, label string) []*html.Node {
 	t.Helper()
 	doc, err := html.Parse(strings.NewReader(page))
 	if err != nil {
 		t.Fatal(err)
 	}
-	var items []string
+	var rows []*html.Node
 	for n := range doc.Descendants() {
 		if n.Type == html.ElementNode && n.Data == "ul" && attr(n, "aria-label") == label {
 			for li := range n.ChildNodes() {
 				if li.Type == html.ElementNode && li.Data == "li" {
-					items = append(items, text(li))
+					rows = append(rows, li)
 				}
 			}
 		}
 	}
-	return items
+	return rows
+}
+
+func testID(n *html.Node, id string) string {
+	for d := range n.Descendants() {
+		if d.Type == html.ElementNode && attr(d, "data-testid") == id {
+			return text(d)
+		}
+	}
+	return ""
 }
 
 func attr(n *html.Node, key string) string {
@@ -302,6 +415,15 @@ func attr(n *html.Node, key string) string {
 		}
 	}
 	return ""
+}
+
+func hasAttr(n *html.Node, key string) bool {
+	for _, a := range n.Attr {
+		if a.Key == key {
+			return true
+		}
+	}
+	return false
 }
 
 func text(n *html.Node) string {

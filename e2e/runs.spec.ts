@@ -1,5 +1,5 @@
 import { expect, test } from './fixtures';
-import { createCase, createProject, executionList, openRun, runList, startRun } from './steps';
+import { createCase, createProject, executionList, executionRow, openRun, runList, startRun } from './steps';
 
 test.beforeEach(async ({ page }) => {
   await createProject(page, 'Mobile');
@@ -15,6 +15,21 @@ test('Run başlatma: iki case varken run başlatılır, run listesinde görünü
   await runList(page).getByRole('link', { name: 'Sprint 1' }).click();
   await expect(page.getByRole('heading', { name: 'Sprint 1' })).toBeVisible();
   await expect(executionList(page)).toHaveText(['Login works Untested', 'Logout works Untested']);
+});
+
+test('Execution kopyası: Run ekranında her execution ın Description ve Priority değeri görünür', async ({ page }) => {
+  await createCase(page, 'Login works', { description: 'Sign in with a valid email and password.', priority: 'High' });
+  await createCase(page, 'Logout works', { priority: 'Low' });
+
+  await startRun(page, 'Mobile', 'Sprint 1');
+  await openRun(page, 'Mobile', 'Sprint 1');
+
+  const login = executionRow(page, 'Login works');
+  await expect(login.getByTestId('execution-priority')).toHaveText('High');
+  await expect(login.getByTestId('execution-description')).toHaveText('Sign in with a valid email and password.');
+  const logout = executionRow(page, 'Logout works');
+  await expect(logout.getByTestId('execution-priority')).toHaveText('Low');
+  await expect(logout.getByTestId('execution-description')).toHaveCount(0);
 });
 
 test('Boş ad: run başlatılamaz, hata mesajı görünür', async ({ page }) => {

@@ -287,3 +287,99 @@ func TestRunsStartedAfterAVersion5MigrationIncludeEveryCaseOfTheLibrary(t *testi
 		t.Errorf("Sprint 3 executions = %q, want %q", got, want)
 	}
 }
+
+const schemaV6 = `
+CREATE TABLE projects (
+    id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL COLLATE NOCASE UNIQUE CHECK (name <> '')
+);
+CREATE TABLE cases (
+    id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL CHECK (title <> '')
+);
+CREATE TABLE runs (
+    id INTEGER PRIMARY KEY,
+    project_id INTEGER NOT NULL REFERENCES projects (id),
+    name TEXT NOT NULL CHECK (name <> '')
+);
+CREATE TABLE executions (
+    id INTEGER PRIMARY KEY,
+    run_id INTEGER NOT NULL REFERENCES runs (id),
+    case_id INTEGER NOT NULL REFERENCES cases (id),
+    title TEXT NOT NULL CHECK (title <> ''),
+    status TEXT CHECK (status IN ('Passed', 'Failed'))
+);
+CREATE INDEX runs_project_id ON runs (project_id);
+CREATE INDEX executions_run_id ON executions (run_id);
+`
+
+const sampleLibraryData = `
+INSERT INTO projects (id, name) VALUES (1, 'Mobile'), (2, 'Web');
+INSERT INTO cases (id, title) VALUES
+    (4, 'Login works'),
+    (5, 'Login works'),
+    (7, 'Checkout works'),
+    (9, 'Logout works');
+INSERT INTO runs (id, project_id, name) VALUES (6, 1, 'Sprint 1'), (8, 2, 'Sprint 2');
+INSERT INTO executions (id, run_id, case_id, title, status) VALUES
+    (20, 6, 4, 'Login works', 'Passed'),
+    (21, 6, 9, 'Logout works', 'Failed'),
+    (30, 8, 5, 'Login works', NULL),
+    (31, 8, 7, 'Checkout works', 'Passed');
+`
+
+func TestVersion6CasesGetMediumPriorityAndExecutionsAreKept(t *testing.T) {
+	a := startApp(t, databaseAt(t, 6, schemaV6+sampleLibraryData))
+
+	wantCases := []libraryCase{
+		{"Login works", "Medium"},
+		{"Login works", "Medium"},
+		{"Checkout works", "Medium"},
+		{"Logout works", "Medium"},
+	}
+	if got := a.libraryCases(); !slices.Equal(got, wantCases) {
+		t.Errorf("library cases = %v, want %v", got, wantCases)
+	}
+	mobile, web := a.inProject("Mobile"), a.inProject("Web")
+	sprint1, sprint2 := mobile.runs()[0], web.runs()[0]
+	if got, want := a.executions(sprint1), []string{"Login works Passed", "Logout works Failed"}; !slices.Equal(got, want) {
+		t.Errorf("Sprint 1 executions = %q, want %q", got, want)
+	}
+	if got, want := a.executions(sprint2), []string{"Login works Untested", "Checkout works Passed"}; !slices.Equal(got, want) {
+		t.Errorf("Sprint 2 executions = %q, want %q", got, want)
+	}
+	for _, run := range []link{sprint1, sprint2} {
+		want := slices.Repeat([]executionFields{{Priority: "Medium"}}, 2)
+		if got := a.executionFields(run); !slices.Equal(got, want) {
+			t.Errorf("%s execution fields = %q, want %q", run.Text, got, want)
+		}
+	}
+	if got, want := a.statusAction(sprint1, "Logout works"), sprint1.Href+"/executions/21/status"; got != want {
+		t.Errorf("status action = %q, want %q", got, want)
+	}
+}
+
+func TestStatusCanBeEnteredOnAnExecutionOfAVersion6Run(t *testing.T) {
+	a := startApp(t, databaseAt(t, 6, schemaV6+sampleLibraryData))
+	sprint2 := a.inProject("Web").runs()[0]
+
+	a.mustEnterStatus(sprint2, "Login works", "Failed")
+
+	if got, want := a.executions(sprint2), []string{"Login works Failed", "Checkout works Passed"}; !slices.Equal(got, want) {
+		t.Errorf("Sprint 2 executions = %q, want %q", got, want)
+	}
+}
+
+func TestRunsStartedAfterAVersion6MigrationCopyTheNewFieldsOfEveryCase(t *testing.T) {
+	a := startApp(t, databaseAt(t, 6, schemaV6+sampleLibraryData))
+	a.mustCreateCaseWith("Reset password works", "Request a reset link.", "High")
+	mobile := a.inProject("Mobile")
+
+	mobile.mustStartRun("Sprint 3")
+
+	want := append(slices.Repeat([]executionFields{{Priority: "Medium"}}, 4),
+		executionFields{Priority: "High", Description: "Request a reset link."})
+	if got := a.executionFields(mobile.runs()[1]); !slices.Equal(got, want) {
+		t.Errorf("Sprint 3 execution fields = %q, want %q", got, want)
+	}
+}

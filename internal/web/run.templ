@@ -14,6 +14,14 @@ templ runPage(project qahub.Project, run qahub.Run, executions []qahub.Execution
 							<button type="submit" name="status" value={ s.String() }>{ s.String() }</button>
 						}
 					</form>
+					<dl>
+						<dt>Priority</dt>
+						<dd data-testid="execution-priority">{ e.Priority.String() }</dd>
+						if e.Description.String() != "" {
+							<dt>Description</dt>
+							<dd data-testid="execution-description">{ e.Description.String() }</dd>
+						}
+					</dl>
 				</li>
 			}
 		</ul>

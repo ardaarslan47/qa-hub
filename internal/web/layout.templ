@@ -14,6 +14,9 @@ templ layout(title string, project *qahub.Project) {
 				nav { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
 				form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1.5rem; }
 				li form { display: inline-flex; margin: 0 0 0 0.5rem; }
+				dl { display: grid; grid-template-columns: max-content 1fr; gap: 0 1rem; margin: 0 0 1rem; }
+				dt { font-weight: 600; }
+				dd { margin: 0; white-space: pre-wrap; }
 				[role="alert"] { flex-basis: 100%; margin: 0; color: #b00020; }
 			</style>
 		</head>

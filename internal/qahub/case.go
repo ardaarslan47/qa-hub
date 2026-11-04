@@ -26,17 +26,21 @@ func (t Title) String() string {
 type CaseID int64
 
 type Case struct {
-	ID    CaseID
-	Title Title
+	ID          CaseID
+	Title       Title
+	Description Description
+	Priority    Priority
 }
 
-func (s *Store) CreateCase(ctx context.Context, title Title) error {
-	_, err := s.db.ExecContext(ctx, "INSERT INTO cases (title) VALUES (?)", title.text)
+func (s *Store) CreateCase(ctx context.Context, title Title, description Description, priority Priority) error {
+	_, err := s.db.ExecContext(ctx,
+		"INSERT INTO cases (title, description, priority) VALUES (?, ?, ?)",
+		title.text, description.text, priority.name)
 	return err
 }
 
 func (s *Store) Cases(ctx context.Context) ([]Case, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, title FROM cases ORDER BY id")
+	rows, err := s.db.QueryContext(ctx, "SELECT id, title, description, priority FROM cases ORDER BY id")
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +48,7 @@ func (s *Store) Cases(ctx context.Context) ([]Case, error) {
 	var cases []Case
 	for rows.Next() {
 		var c Case
-		if err := rows.Scan(&c.ID, &c.Title.text); err != nil {
+		if err := rows.Scan(&c.ID, &c.Title.text, &c.Description.text, &c.Priority.name); err != nil {
 			return nil, err
 		}
 		cases = append(cases, c)

@@ -33,14 +33,28 @@ export async function openLibrary(page: Page) {
   await menuLink(page, 'Library').click();
 }
 
-export async function createCase(page: Page, title: string) {
+export async function createCase(
+  page: Page,
+  title: string,
+  fields: { description?: string; priority?: 'Low' | 'Medium' | 'High' } = {},
+) {
   await openLibrary(page);
   await page.getByLabel('Title').fill(title);
+  if (fields.description !== undefined) await page.getByLabel('Description').fill(fields.description);
+  if (fields.priority !== undefined) await page.getByLabel('Priority').selectOption(fields.priority);
   await page.getByRole('button', { name: 'Create case' }).click();
 }
 
-export function caseList(page: Page) {
+function caseRows(page: Page) {
   return page.getByRole('list', { name: 'Cases' }).getByRole('listitem');
+}
+
+export function caseList(page: Page) {
+  return caseRows(page).getByTestId('case-title');
+}
+
+export function casePriority(page: Page, title: string) {
+  return caseRows(page).filter({ hasText: title }).getByTestId('case-priority');
 }
 
 export async function startRun(page: Page, project: string, name: string) {
@@ -66,6 +80,10 @@ export function executionList(page: Page) {
   return executionRows(page).getByTestId('execution');
 }
 
+export function executionRow(page: Page, title: string) {
+  return executionRows(page).filter({ hasText: title });
+}
+
 export async function enterStatus(page: Page, title: string, status: 'Passed' | 'Failed') {
-  await executionRows(page).filter({ hasText: title }).getByRole('button', { name: status }).click();
+  await executionRow(page, title).getByRole('button', { name: status }).click();
 }

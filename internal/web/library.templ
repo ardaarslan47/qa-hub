@@ -2,7 +2,7 @@ package web
 
 import "github.com/ardaarslan47/qa-hub/internal/qahub"
 
-templ libraryPage(cases []qahub.Case, titleError string) {
+templ libraryPage(cases []qahub.Case, form caseForm) {
 	@layout("Library", nil) {
 		<h1>Library</h1>
 		<form method="post" action={ templ.SafeURL(libraryPath) }>
@@ -11,15 +11,34 @@ templ libraryPage(cases []qahub.Case, titleError string) {
 				id="title"
 				name="title"
 				type="text"
+				value={ form.Title }
 				autofocus
-				if titleError != "" {
+				if form.TitleError != "" {
 					aria-invalid="true"
 					aria-describedby="title-error"
 				}
 			/>
+			<label for="description">Description</label>
+			<textarea id="description" name="description" rows="3">{ form.Description }</textarea>
+			<label for="priority">Priority</label>
+			<select
+				id="priority"
+				name="priority"
+				if form.PriorityError != "" {
+					aria-invalid="true"
+					aria-describedby="priority-error"
+				}
+			>
+				for _, p := range qahub.Priorities() {
+					<option value={ p.String() } selected?={ p == form.Priority }>{ p.String() }</option>
+				}
+			</select>
 			<button type="submit">Create case</button>
-			if titleError != "" {
-				<p id="title-error" role="alert">{ titleError }</p>
+			if form.TitleError != "" {
+				<p id="title-error" role="alert">{ form.TitleError }</p>
+			}
+			if form.PriorityError != "" {
+				<p id="priority-error" role="alert">{ form.PriorityError }</p>
 			}
 		</form>
 		if len(cases) == 0 {
@@ -27,7 +46,7 @@ templ libraryPage(cases []qahub.Case, titleError string) {
 		} else {
 			<ul aria-label="Cases">
 				for _, c := range cases {
-					<li>{ c.Title.String() }</li>
+					<li><span data-testid="case-title">{ c.Title.String() }</span> <span data-testid="case-priority">{ c.Priority.String() }</span></li>
 				}
 			</ul>
 		}

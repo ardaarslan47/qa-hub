@@ -39,9 +39,11 @@ type Run struct {
 type ExecutionID int64
 
 type Execution struct {
-	ID     ExecutionID
-	Title  Title
-	Status *Status
+	ID          ExecutionID
+	Title       Title
+	Description Description
+	Priority    Priority
+	Status      *Status
 }
 
 func (s *Store) StartRun(ctx context.Context, project ProjectID, name RunName) error {
@@ -59,7 +61,8 @@ func (s *Store) StartRun(ctx context.Context, project ProjectID, name RunName) e
 		return err
 	}
 	res, err = tx.ExecContext(ctx,
-		"INSERT INTO executions (run_id, case_id, title) SELECT ?, id, title FROM cases ORDER BY id",
+		`INSERT INTO executions (run_id, case_id, title, description, priority)
+		SELECT ?, id, title, description, priority FROM cases ORDER BY id`,
 		runID)
 	if err != nil {
 		return err
@@ -102,7 +105,7 @@ func (s *Store) FindRun(ctx context.Context, project ProjectID, id RunID) (Run, 
 
 func (s *Store) Executions(ctx context.Context, project ProjectID, run RunID) ([]Execution, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT e.id, e.title, e.status
+		SELECT e.id, e.title, e.description, e.priority, e.status
 		FROM executions e
 		JOIN runs r ON r.id = e.run_id
 		WHERE e.run_id = ? AND r.project_id = ?
@@ -115,7 +118,7 @@ func (s *Store) Executions(ctx context.Context, project ProjectID, run RunID) ([
 	for rows.Next() {
 		var e Execution
 		var status sql.NullString
-		if err := rows.Scan(&e.ID, &e.Title.text, &status); err != nil {
+		if err := rows.Scan(&e.ID, &e.Title.text, &e.Description.text, &e.Priority.name, &status); err != nil {
 			return nil, err
 		}
 		if status.Valid {
