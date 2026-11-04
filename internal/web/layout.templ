@@ -20,6 +20,7 @@ templ layout(title string, project *qahub.Project) {
 		<body>
 			<nav aria-label="Main">
 				<a href="/projects">Projects</a>
+				<a href={ templ.SafeURL(libraryPath) }>Library</a>
 				if project != nil {
 					<a href={ templ.SafeURL(projectPath(project.ID)) }>{ project.Name.String() }</a>
 				}

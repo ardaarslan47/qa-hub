@@ -116,25 +116,25 @@ func (a *app) inNewProject(name string) project {
 	return a.inProject(name)
 }
 
-func (p project) createCase(title string) (int, string) {
-	p.t.Helper()
-	return p.do(http.MethodPost, p.path+"/cases", url.Values{"title": {title}})
+func (a *app) createCase(title string) (int, string) {
+	a.t.Helper()
+	return a.do(http.MethodPost, "/library", url.Values{"title": {title}})
 }
 
-func (p project) mustCreateCase(title string) {
-	p.t.Helper()
-	if status, body := p.createCase(title); status != http.StatusOK {
-		p.t.Fatalf("create case %q: status %d\n%s", title, status, body)
+func (a *app) mustCreateCase(title string) {
+	a.t.Helper()
+	if status, body := a.createCase(title); status != http.StatusOK {
+		a.t.Fatalf("create case %q: status %d\n%s", title, status, body)
 	}
 }
 
-func (p project) caseTitles() []string {
-	p.t.Helper()
-	status, body := p.do(http.MethodGet, p.path+"/cases", nil)
+func (a *app) caseTitles() []string {
+	a.t.Helper()
+	status, body := a.do(http.MethodGet, "/library", nil)
 	if status != http.StatusOK {
-		p.t.Fatalf("GET %s/cases: status %d\n%s", p.path, status, body)
+		a.t.Fatalf("GET /library: status %d\n%s", status, body)
 	}
-	return listItems(p.t, body, "Cases")
+	return listItems(a.t, body, "Cases")
 }
 
 type link struct {

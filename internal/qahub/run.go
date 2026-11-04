@@ -59,8 +59,8 @@ func (s *Store) StartRun(ctx context.Context, project ProjectID, name RunName) e
 		return err
 	}
 	res, err = tx.ExecContext(ctx,
-		"INSERT INTO executions (run_id, case_id, title) SELECT ?, id, title FROM cases WHERE project_id = ? ORDER BY id",
-		runID, project)
+		"INSERT INTO executions (run_id, case_id, title) SELECT ?, id, title FROM cases ORDER BY id",
+		runID)
 	if err != nil {
 		return err
 	}

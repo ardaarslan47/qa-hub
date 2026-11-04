@@ -6,8 +6,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('Status girme: bir execution a Passed, diğerine Failed girilir, sayfa yenilenince de görünür', async ({ page }) => {
-  await createCase(page, 'Mobile', 'Login works');
-  await createCase(page, 'Mobile', 'Logout works');
+  await createCase(page, 'Login works');
+  await createCase(page, 'Logout works');
   await startRun(page, 'Mobile', 'Sprint 1');
   await openRun(page, 'Mobile', 'Sprint 1');
 
@@ -22,8 +22,8 @@ test('Status girme: bir execution a Passed, diğerine Failed girilir, sayfa yeni
 });
 
 test('Üzerine yazma: Failed girilmiş execution a Passed girilir, status u Passed olur', async ({ page }) => {
-  await createCase(page, 'Mobile', 'Login works');
-  await createCase(page, 'Mobile', 'Logout works');
+  await createCase(page, 'Login works');
+  await createCase(page, 'Logout works');
   await startRun(page, 'Mobile', 'Sprint 1');
   await openRun(page, 'Mobile', 'Sprint 1');
   await enterStatus(page, 'Login works', 'Failed');

@@ -18,11 +18,11 @@ func New(store *qahub.Store) http.Handler {
 	h := handler{store: store}
 	mux := http.NewServeMux()
 	mux.Handle("GET /{$}", http.RedirectHandler("/projects", http.StatusSeeOther))
+	mux.HandleFunc("GET "+libraryPath, h.showLibrary)
+	mux.HandleFunc("POST "+libraryPath, h.createCase)
 	mux.HandleFunc("GET /projects", h.listProjects)
 	mux.HandleFunc("POST /projects", h.createProject)
 	mux.HandleFunc("GET /projects/{id}", h.inProject(h.showProject))
-	mux.HandleFunc("GET /projects/{id}/cases", h.inProject(h.listCases))
-	mux.HandleFunc("POST /projects/{id}/cases", h.inProject(h.createCase))
 	mux.HandleFunc("GET /projects/{id}/runs", h.inProject(h.listRuns))
 	mux.HandleFunc("POST /projects/{id}/runs", h.inProject(h.startRun))
 	mux.HandleFunc("GET /projects/{id}/runs/{runID}", h.inProject(h.inRun(h.showRun)))
@@ -32,10 +32,6 @@ func New(store *qahub.Store) http.Handler {
 
 func projectPath(id qahub.ProjectID) string {
 	return fmt.Sprintf("/projects/%d", id)
-}
-
-func casesPath(id qahub.ProjectID) string {
-	return projectPath(id) + "/cases"
 }
 
 func runsPath(id qahub.ProjectID) string {

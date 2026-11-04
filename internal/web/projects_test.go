@@ -139,16 +139,17 @@ func TestRootRedirectsToProjects(t *testing.T) {
 	}
 }
 
-func TestEveryPageLinksToProjects(t *testing.T) {
+func TestEveryPageLinksToProjectsAndLibrary(t *testing.T) {
 	a := startApp(t, tempDB(t))
 	p := a.inNewProject("Mobile")
 	p.mustCreateCase("Login works")
 	p.mustStartRun("Sprint 1")
 	run := p.runs()[0]
-	_, rejected := a.createProject("")
+	_, rejectedProject := a.createProject("")
+	_, rejectedCase := a.createCase("")
 
-	pages := map[string]string{"rejected POST /projects": rejected}
-	for _, path := range []string{"/projects", p.path, p.path + "/cases", p.path + "/runs", run.Href} {
+	pages := map[string]string{"rejected POST /projects": rejectedProject, "rejected POST /library": rejectedCase}
+	for _, path := range []string{"/projects", p.path, "/library", p.path + "/runs", run.Href} {
 		status, body := a.do(http.MethodGet, path, nil)
 		if status != http.StatusOK {
 			t.Fatalf("GET %s: status %d\n%s", path, status, body)
@@ -156,10 +157,12 @@ func TestEveryPageLinksToProjects(t *testing.T) {
 		pages["GET "+path] = body
 	}
 
-	want := link{Text: "Projects", Href: "/projects"}
 	for name, body := range pages {
-		if got := navLinks(t, body, "Main"); !slices.Contains(got, want) {
-			t.Errorf("%s: nav links = %v, want to contain %v", name, got, want)
+		got := navLinks(t, body, "Main")
+		for _, want := range []link{{Text: "Projects", Href: "/projects"}, {Text: "Library", Href: "/library"}} {
+			if !slices.Contains(got, want) {
+				t.Errorf("%s: nav links = %v, want to contain %v", name, got, want)
+			}
 		}
 	}
 }

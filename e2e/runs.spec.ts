@@ -6,8 +6,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('Run başlatma: iki case varken run başlatılır, run listesinde görünür, sayfasında iki Untested execution vardır', async ({ page }) => {
-  await createCase(page, 'Mobile', 'Login works');
-  await createCase(page, 'Mobile', 'Logout works');
+  await createCase(page, 'Login works');
+  await createCase(page, 'Logout works');
 
   await startRun(page, 'Mobile', 'Sprint 1');
 
@@ -18,7 +18,7 @@ test('Run başlatma: iki case varken run başlatılır, run listesinde görünü
 });
 
 test('Boş ad: run başlatılamaz, hata mesajı görünür', async ({ page }) => {
-  await createCase(page, 'Mobile', 'Login works');
+  await createCase(page, 'Login works');
 
   await startRun(page, 'Mobile', '');
 
@@ -34,10 +34,10 @@ test('Case yokken run: run başlatılamaz, hata mesajı görünür', async ({ pa
 });
 
 test('Snapshot: run başladıktan sonra oluşturulan case o run da görünmez, yeni run da görünür', async ({ page }) => {
-  await createCase(page, 'Mobile', 'Login works');
-  await createCase(page, 'Mobile', 'Logout works');
+  await createCase(page, 'Login works');
+  await createCase(page, 'Logout works');
   await startRun(page, 'Mobile', 'Sprint 1');
-  await createCase(page, 'Mobile', 'Reset password works');
+  await createCase(page, 'Reset password works');
   await startRun(page, 'Mobile', 'Sprint 2');
 
   await openRun(page, 'Mobile', 'Sprint 1');

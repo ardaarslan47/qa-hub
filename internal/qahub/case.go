@@ -30,13 +30,13 @@ type Case struct {
 	Title Title
 }
 
-func (s *Store) CreateCase(ctx context.Context, project ProjectID, title Title) error {
-	_, err := s.db.ExecContext(ctx, "INSERT INTO cases (project_id, title) VALUES (?, ?)", project, title.text)
+func (s *Store) CreateCase(ctx context.Context, title Title) error {
+	_, err := s.db.ExecContext(ctx, "INSERT INTO cases (title) VALUES (?)", title.text)
 	return err
 }
 
-func (s *Store) Cases(ctx context.Context, project ProjectID) ([]Case, error) {
-	rows, err := s.db.QueryContext(ctx, "SELECT id, title FROM cases WHERE project_id = ? ORDER BY id", project)
+func (s *Store) Cases(ctx context.Context) ([]Case, error) {
+	rows, err := s.db.QueryContext(ctx, "SELECT id, title FROM cases ORDER BY id")
 	if err != nil {
 		return nil, err
 	}

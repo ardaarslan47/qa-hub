@@ -7,8 +7,8 @@ import (
 	"testing"
 )
 
-func TestCreatedCasesAppearInListInCreationOrder(t *testing.T) {
-	a := startApp(t, tempDB(t)).inNewProject("Mobile")
+func TestCreatedCasesAppearInLibraryInCreationOrder(t *testing.T) {
+	a := startApp(t, tempDB(t))
 
 	a.mustCreateCase("Login works")
 	a.mustCreateCase(`<b>Cart</b> & "checkout"`)
@@ -20,7 +20,7 @@ func TestCreatedCasesAppearInListInCreationOrder(t *testing.T) {
 }
 
 func TestBlankTitleIsRejectedWithAnError(t *testing.T) {
-	a := startApp(t, tempDB(t)).inNewProject("Mobile")
+	a := startApp(t, tempDB(t))
 	a.mustCreateCase("Login works")
 
 	for _, title := range []string{"", "   ", "\t\r\n", "\u00a0\u3000", "\u200b\ufeff\u2060"} {
@@ -39,7 +39,7 @@ func TestBlankTitleIsRejectedWithAnError(t *testing.T) {
 }
 
 func TestTwoCasesMayShareATitle(t *testing.T) {
-	a := startApp(t, tempDB(t)).inNewProject("Mobile")
+	a := startApp(t, tempDB(t))
 
 	a.mustCreateCase("Login works")
 	a.mustCreateCase("Login works")
@@ -51,12 +51,12 @@ func TestTwoCasesMayShareATitle(t *testing.T) {
 
 func TestCasesSurviveRestart(t *testing.T) {
 	dbPath := tempDB(t)
-	first := startApp(t, dbPath).inNewProject("Mobile")
+	first := startApp(t, dbPath)
 	first.mustCreateCase("Login works")
 	first.mustCreateCase("Logout works")
 	first.stop()
 
-	second := startApp(t, dbPath).inProject("Mobile")
+	second := startApp(t, dbPath)
 
 	if got, want := second.caseTitles(), []string{"Login works", "Logout works"}; !slices.Equal(got, want) {
 		t.Errorf("case titles after restart = %q, want %q", got, want)
@@ -64,11 +64,19 @@ func TestCasesSurviveRestart(t *testing.T) {
 }
 
 func TestTitleIsTrimmed(t *testing.T) {
-	a := startApp(t, tempDB(t)).inNewProject("Mobile")
+	a := startApp(t, tempDB(t))
 
 	a.mustCreateCase(" \t Login works\u200b\n")
 
 	if got, want := a.caseTitles(), []string{"Login works"}; !slices.Equal(got, want) {
 		t.Errorf("case titles = %q, want %q", got, want)
+	}
+}
+
+func TestLibraryIsEmptyUntilACaseIsCreated(t *testing.T) {
+	a := startApp(t, tempDB(t))
+
+	if got := a.caseTitles(); len(got) != 0 {
+		t.Errorf("case titles = %q, want none", got)
 	}
 }

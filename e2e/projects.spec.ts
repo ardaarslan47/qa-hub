@@ -1,15 +1,14 @@
 import { expect, test } from './fixtures';
 import {
-  caseList,
   createCase,
   createProject,
   executionList,
   menuLink,
-  openCases,
   openProject,
   openRun,
   openRuns,
   projectList,
+  projectSection,
   runList,
   startRun,
 } from './steps';
@@ -42,55 +41,53 @@ test('Aynı ad: Mobile varken mobile oluşturulamaz, hata mesajı görünür, li
   await expect(projectList(page)).toHaveText(['Mobile']);
 });
 
-test('Project ana sayfası: Cases ve Runs linkleri ilgili sayfaları açar, menüdeki project adı ana sayfaya döner', async ({ page }) => {
+test('Project ana sayfası: Project gezintisinde Runs görünür Cases görünmez, Runs sayfayı açar, menüdeki project adı ana sayfaya döner', async ({ page }) => {
   await createProject(page, 'Mobile');
   await openProject(page, 'Mobile');
 
-  await page.getByRole('link', { name: 'Cases', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Cases' })).toBeVisible();
+  await expect(projectSection(page, 'Runs')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Cases', exact: true })).toHaveCount(0);
+
+  await projectSection(page, 'Runs').click();
+  await expect(page.getByRole('heading', { name: 'Runs' })).toBeVisible();
 
   await menuLink(page, 'Mobile').click();
   await expect(page.getByRole('heading', { name: 'Mobile' })).toBeVisible();
-
-  await page.getByRole('link', { name: 'Runs', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Runs' })).toBeVisible();
 });
 
-test('İzolasyon: iki project te açılan case ler ve run lar birbirinin listesinde görünmez', async ({ page }) => {
+test('İzolasyon: iki project te başlatılan run lar birbirinin listesinde görünmez', async ({ page }) => {
   await createProject(page, 'Mobile');
   await createProject(page, 'Web');
-  await createCase(page, 'Mobile', 'Login works');
-  await createCase(page, 'Web', 'Checkout works');
+  await createCase(page, 'Login works');
   await startRun(page, 'Mobile', 'Sprint 1');
   await startRun(page, 'Web', 'Sprint 2');
 
-  await openCases(page, 'Mobile');
-  await expect(caseList(page)).toHaveText(['Login works']);
   await openRuns(page, 'Mobile');
   await expect(runList(page)).toHaveText(['Sprint 1']);
 
-  await openCases(page, 'Web');
-  await expect(caseList(page)).toHaveText(['Checkout works']);
   await openRuns(page, 'Web');
   await expect(runList(page)).toHaveText(['Sprint 2']);
 });
 
-test('Run sadece kendi project indeki case lerden execution üretir', async ({ page }) => {
+test('Library nin her case i iki project in run ında da execution olur', async ({ page }) => {
   await createProject(page, 'Mobile');
   await createProject(page, 'Web');
-  await createCase(page, 'Mobile', 'Login works');
-  await createCase(page, 'Web', 'Checkout works');
+  await createCase(page, 'Login works');
+  await createCase(page, 'Checkout works');
 
   await startRun(page, 'Mobile', 'Sprint 1');
+  await startRun(page, 'Web', 'Sprint 2');
 
   await openRun(page, 'Mobile', 'Sprint 1');
-  await expect(executionList(page)).toHaveText(['Login works Untested']);
+  await expect(executionList(page)).toHaveText(['Login works Untested', 'Checkout works Untested']);
+  await openRun(page, 'Web', 'Sprint 2');
+  await expect(executionList(page)).toHaveText(['Login works Untested', 'Checkout works Untested']);
 });
 
 test('Başka project in URL si altından açılan run 404 döner', async ({ page }) => {
   await createProject(page, 'Mobile');
   await createProject(page, 'Web');
-  await createCase(page, 'Mobile', 'Login works');
+  await createCase(page, 'Login works');
   await startRun(page, 'Mobile', 'Sprint 1');
 
   await openRun(page, 'Mobile', 'Sprint 1');

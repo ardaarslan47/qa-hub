@@ -8,22 +8,15 @@ import (
 	"testing"
 )
 
-func TestCasesAndRunsStayInTheirOwnProject(t *testing.T) {
+func TestRunsStayInTheirOwnProject(t *testing.T) {
 	a := startApp(t, tempDB(t))
 	mobile := a.inNewProject("Mobile")
 	desktop := a.inNewProject("Desktop")
+	a.mustCreateCase("Login works")
 
-	mobile.mustCreateCase("Login works")
-	desktop.mustCreateCase("Checkout works")
 	mobile.mustStartRun("Sprint 1")
 	desktop.mustStartRun("Sprint 2")
 
-	if got, want := mobile.caseTitles(), []string{"Login works"}; !slices.Equal(got, want) {
-		t.Errorf("Mobile case titles = %q, want %q", got, want)
-	}
-	if got, want := desktop.caseTitles(), []string{"Checkout works"}; !slices.Equal(got, want) {
-		t.Errorf("Desktop case titles = %q, want %q", got, want)
-	}
 	if got, want := mobile.runNames(), []string{"Sprint 1"}; !slices.Equal(got, want) {
 		t.Errorf("Mobile run names = %q, want %q", got, want)
 	}
@@ -32,54 +25,48 @@ func TestCasesAndRunsStayInTheirOwnProject(t *testing.T) {
 	}
 }
 
-func TestRunHasExecutionsOnlyForCasesOfItsProject(t *testing.T) {
+func TestRunsOfEveryProjectHaveExecutionsForEveryCaseOfTheLibrary(t *testing.T) {
 	a := startApp(t, tempDB(t))
 	mobile := a.inNewProject("Mobile")
 	desktop := a.inNewProject("Desktop")
-	desktop.mustCreateCase("Checkout works")
-	mobile.mustCreateCase("Login works")
-	desktop.mustCreateCase("Refund works")
+	a.mustCreateCase("Checkout works")
+	a.mustCreateCase("Login works")
 
 	mobile.mustStartRun("Sprint 1")
+	desktop.mustStartRun("Sprint 2")
 
-	want := []string{"Login works Untested"}
+	want := []string{"Checkout works Untested", "Login works Untested"}
 	if got := mobile.executions(mobile.runs()[0]); !slices.Equal(got, want) {
-		t.Errorf("executions = %q, want %q", got, want)
+		t.Errorf("Mobile executions = %q, want %q", got, want)
+	}
+	if got := desktop.executions(desktop.runs()[0]); !slices.Equal(got, want) {
+		t.Errorf("Desktop executions = %q, want %q", got, want)
 	}
 }
 
-func TestTwoProjectsMayShareCaseTitlesAndRunNames(t *testing.T) {
+func TestTwoProjectsMayShareRunNames(t *testing.T) {
 	a := startApp(t, tempDB(t))
+	a.mustCreateCase("Login works")
 
 	for _, p := range []project{a.inNewProject("Mobile"), a.inNewProject("Desktop")} {
-		p.mustCreateCase("Login works")
 		p.mustStartRun("Sprint 1")
 
-		if got, want := p.caseTitles(), []string{"Login works"}; !slices.Equal(got, want) {
-			t.Errorf("%s case titles = %q, want %q", p.path, got, want)
-		}
 		if got, want := p.runNames(), []string{"Sprint 1"}; !slices.Equal(got, want) {
 			t.Errorf("%s run names = %q, want %q", p.path, got, want)
 		}
 	}
 }
 
-func TestRunCannotStartWhenOnlyAnotherProjectHasCases(t *testing.T) {
+func TestRunCanStartInAProjectWhoseLibraryCasesWereCreatedFromAnywhere(t *testing.T) {
 	a := startApp(t, tempDB(t))
 	mobile := a.inNewProject("Mobile")
 	desktop := a.inNewProject("Desktop")
-	desktop.mustCreateCase("Checkout works")
+	mobile.mustCreateCase("Checkout works")
 
-	status, body := mobile.startRun("Sprint 1")
+	desktop.mustStartRun("Sprint 1")
 
-	if status != http.StatusUnprocessableEntity {
-		t.Errorf("start run: status %d, want %d", status, http.StatusUnprocessableEntity)
-	}
-	if !strings.Contains(body, "Create a case before starting a run.") {
-		t.Errorf("page does not show the error\n%s", body)
-	}
-	if got := mobile.runNames(); len(got) != 0 {
-		t.Errorf("run names = %q, want none", got)
+	if got, want := desktop.executions(desktop.runs()[0]), []string{"Checkout works Untested"}; !slices.Equal(got, want) {
+		t.Errorf("executions = %q, want %q", got, want)
 	}
 }
 
@@ -105,16 +92,16 @@ func TestStatusCannotBeEnteredThroughAnotherProject(t *testing.T) {
 	a := startApp(t, tempDB(t))
 	mobile := a.inNewProject("Mobile")
 	desktop := a.inNewProject("Desktop")
-	mobile.mustCreateCase("Login works")
+	a.mustCreateCase("Login works")
+	a.mustCreateCase("Checkout works")
 	mobile.mustStartRun("Sprint 1")
-	desktop.mustCreateCase("Checkout works")
 	desktop.mustStartRun("Sprint 2")
 
 	paths := []string{
 		"/projects/2/runs/1/executions/1/status",
 		"/projects/2/runs/2/executions/1/status",
-		"/projects/1/runs/2/executions/2/status",
-		"/projects/1/runs/1/executions/2/status",
+		"/projects/1/runs/2/executions/3/status",
+		"/projects/1/runs/1/executions/3/status",
 		"/projects/3/runs/1/executions/1/status",
 	}
 	for _, path := range paths {
@@ -125,11 +112,31 @@ func TestStatusCannotBeEnteredThroughAnotherProject(t *testing.T) {
 		}
 	}
 
-	if got, want := mobile.executions(mobile.runs()[0]), []string{"Login works Untested"}; !slices.Equal(got, want) {
+	want := []string{"Login works Untested", "Checkout works Untested"}
+	if got := mobile.executions(mobile.runs()[0]); !slices.Equal(got, want) {
 		t.Errorf("Mobile executions = %q, want %q", got, want)
 	}
-	if got, want := desktop.executions(desktop.runs()[0]), []string{"Checkout works Untested"}; !slices.Equal(got, want) {
+	if got := desktop.executions(desktop.runs()[0]); !slices.Equal(got, want) {
 		t.Errorf("Desktop executions = %q, want %q", got, want)
+	}
+}
+
+func TestProjectCasesAddressesAreNotFound(t *testing.T) {
+	a := startApp(t, tempDB(t))
+	p := a.inNewProject("Mobile")
+	a.mustCreateCase("Login works")
+
+	for _, path := range []string{p.path + "/cases", p.path + "/cases/", p.path + "/cases/1", "/projects/99/cases"} {
+		if status, _ := a.do(http.MethodGet, path, nil); status != http.StatusNotFound {
+			t.Errorf("GET %s: status %d, want %d", path, status, http.StatusNotFound)
+		}
+		if status, _ := a.do(http.MethodPost, path, url.Values{"title": {"Logout works"}}); status != http.StatusNotFound {
+			t.Errorf("POST %s: status %d, want %d", path, status, http.StatusNotFound)
+		}
+	}
+
+	if got, want := a.caseTitles(), []string{"Login works"}; !slices.Equal(got, want) {
+		t.Errorf("case titles = %q, want %q", got, want)
 	}
 }
 
@@ -141,28 +148,20 @@ func TestSubpagesOfAnUnknownProjectAreNotFound(t *testing.T) {
 
 	for _, id := range []string{"2", "0", "-1", "abc", "1x", "99999999999999999999"} {
 		base := "/projects/" + id
-		for _, path := range []string{"/cases", "/runs", "/runs/1"} {
+		for _, path := range []string{"/runs", "/runs/1"} {
 			if status, _ := a.do(http.MethodGet, base+path, nil); status != http.StatusNotFound {
 				t.Errorf("GET %s%s: status %d, want %d", base, path, status, http.StatusNotFound)
 			}
 		}
-		writes := map[string]url.Values{
-			"/cases": {"title": {"Logout works"}},
-			"/runs":  {"name": {"Sprint 2"}},
+		runForm := url.Values{"name": {"Sprint 2"}}
+		if status, _ := a.do(http.MethodPost, base+"/runs", runForm); status != http.StatusNotFound {
+			t.Errorf("POST %s/runs: status %d, want %d", base, status, http.StatusNotFound)
 		}
-		for path, form := range writes {
-			if status, _ := a.do(http.MethodPost, base+path, form); status != http.StatusNotFound {
-				t.Errorf("POST %s%s: status %d, want %d", base, path, status, http.StatusNotFound)
-			}
-			if status, _ := a.do(http.MethodPost, base+path, url.Values{}); status != http.StatusNotFound {
-				t.Errorf("POST %s%s with a blank form: status %d, want %d", base, path, status, http.StatusNotFound)
-			}
+		if status, _ := a.do(http.MethodPost, base+"/runs", url.Values{}); status != http.StatusNotFound {
+			t.Errorf("POST %s/runs with a blank form: status %d, want %d", base, status, http.StatusNotFound)
 		}
 	}
 
-	if got, want := p.caseTitles(), []string{"Login works"}; !slices.Equal(got, want) {
-		t.Errorf("case titles = %q, want %q", got, want)
-	}
 	if got, want := p.runNames(), []string{"Sprint 1"}; !slices.Equal(got, want) {
 		t.Errorf("run names = %q, want %q", got, want)
 	}
@@ -171,9 +170,6 @@ func TestSubpagesOfAnUnknownProjectAreNotFound(t *testing.T) {
 func TestWritesWithoutAnyProjectAreNotFound(t *testing.T) {
 	a := startApp(t, tempDB(t))
 
-	if status, _ := a.do(http.MethodPost, "/projects/1/cases", url.Values{"title": {"Login works"}}); status != http.StatusNotFound {
-		t.Errorf("create case: status %d, want %d", status, http.StatusNotFound)
-	}
 	if status, _ := a.do(http.MethodPost, "/projects/1/runs", url.Values{"name": {"Sprint 1"}}); status != http.StatusNotFound {
 		t.Errorf("start run: status %d, want %d", status, http.StatusNotFound)
 	}
@@ -206,7 +202,7 @@ func TestOldAddressesAreNotFound(t *testing.T) {
 	}
 }
 
-func TestProjectHomeLinksToItsCasesAndRuns(t *testing.T) {
+func TestProjectHomeLinksOnlyToItsRuns(t *testing.T) {
 	a := startApp(t, tempDB(t))
 
 	for _, p := range []project{a.inNewProject("Mobile"), a.inNewProject("Desktop")} {
@@ -215,36 +211,30 @@ func TestProjectHomeLinksToItsCasesAndRuns(t *testing.T) {
 			t.Fatalf("GET %s: status %d\n%s", p.path, status, body)
 		}
 
-		want := []link{{Text: "Cases", Href: p.path + "/cases"}, {Text: "Runs", Href: p.path + "/runs"}}
+		want := []link{{Text: "Runs", Href: p.path + "/runs"}}
 		got := navLinks(t, body, "Project")
 		if !slices.Equal(got, want) {
 			t.Fatalf("GET %s: links = %v, want %v", p.path, got, want)
 		}
-		for _, section := range got {
-			status, body := a.do(http.MethodGet, section.Href, nil)
-			if status != http.StatusOK {
-				t.Fatalf("GET %s: status %d\n%s", section.Href, status, body)
-			}
-			if got := heading(t, body); got != section.Text {
-				t.Errorf("GET %s: heading = %q, want %q", section.Href, got, section.Text)
-			}
+		status, body = a.do(http.MethodGet, got[0].Href, nil)
+		if status != http.StatusOK {
+			t.Fatalf("GET %s: status %d\n%s", got[0].Href, status, body)
+		}
+		if heading := heading(t, body); heading != got[0].Text {
+			t.Errorf("GET %s: heading = %q, want %q", got[0].Href, heading, got[0].Text)
 		}
 	}
 }
 
-func TestProjectSubpagesShowOnlyProjectsAndTheProjectNameInTheMenu(t *testing.T) {
+func TestProjectSubpagesShowProjectsLibraryAndTheProjectNameInTheMenu(t *testing.T) {
 	a := startApp(t, tempDB(t))
 	p := a.inNewProject("Mobile")
 	p.mustCreateCase("Login works")
 	p.mustStartRun("Sprint 1")
-	_, rejectedCase := p.createCase("")
 	_, rejectedRun := p.startRun("")
 
-	pages := map[string]string{
-		"rejected case": rejectedCase,
-		"rejected run":  rejectedRun,
-	}
-	for _, path := range []string{p.path + "/cases", p.path + "/runs", p.runs()[0].Href} {
+	pages := map[string]string{"rejected run": rejectedRun}
+	for _, path := range []string{p.path + "/runs", p.runs()[0].Href} {
 		status, body := a.do(http.MethodGet, path, nil)
 		if status != http.StatusOK {
 			t.Fatalf("GET %s: status %d\n%s", path, status, body)
@@ -252,7 +242,7 @@ func TestProjectSubpagesShowOnlyProjectsAndTheProjectNameInTheMenu(t *testing.T)
 		pages["GET "+path] = body
 	}
 
-	want := []link{{Text: "Projects", Href: "/projects"}, {Text: "Mobile", Href: p.path}}
+	want := []link{{Text: "Projects", Href: "/projects"}, {Text: "Library", Href: "/library"}, {Text: "Mobile", Href: p.path}}
 	for name, body := range pages {
 		if got := navLinks(t, body, "Main"); !slices.Equal(got, want) {
 			t.Errorf("%s: menu = %v, want %v", name, got, want)
@@ -263,15 +253,21 @@ func TestProjectSubpagesShowOnlyProjectsAndTheProjectNameInTheMenu(t *testing.T)
 	}
 }
 
-func TestProjectListAndHomeDoNotShowTheProjectNameInTheMenu(t *testing.T) {
+func TestProjectListHomeAndLibraryDoNotShowTheProjectNameInTheMenu(t *testing.T) {
 	a := startApp(t, tempDB(t))
 	p := a.inNewProject("Mobile")
+	_, rejectedCase := a.createCase("")
 
-	want := []link{{Text: "Projects", Href: "/projects"}}
-	for _, path := range []string{"/projects", p.path} {
+	pages := map[string]string{"rejected case": rejectedCase}
+	for _, path := range []string{"/projects", p.path, "/library"} {
 		_, body := a.do(http.MethodGet, path, nil)
+		pages["GET "+path] = body
+	}
+
+	want := []link{{Text: "Projects", Href: "/projects"}, {Text: "Library", Href: "/library"}}
+	for name, body := range pages {
 		if got := navLinks(t, body, "Main"); !slices.Equal(got, want) {
-			t.Errorf("GET %s: menu = %v, want %v", path, got, want)
+			t.Errorf("%s: menu = %v, want %v", name, got, want)
 		}
 	}
 }
