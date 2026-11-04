@@ -383,3 +383,108 @@ func TestRunsStartedAfterAVersion6MigrationCopyTheNewFieldsOfEveryCase(t *testin
 		t.Errorf("Sprint 3 execution fields = %q, want %q", got, want)
 	}
 }
+
+const schemaV8 = schemaV6 + `
+ALTER TABLE cases ADD COLUMN description TEXT NOT NULL DEFAULT '';
+ALTER TABLE cases ADD COLUMN priority TEXT NOT NULL DEFAULT 'Medium' CHECK (priority IN ('Low', 'Medium', 'High'));
+ALTER TABLE executions ADD COLUMN description TEXT NOT NULL DEFAULT '';
+ALTER TABLE executions ADD COLUMN priority TEXT NOT NULL DEFAULT 'Medium' CHECK (priority IN ('Low', 'Medium', 'High'));
+CREATE TABLE case_preconditions (
+    case_id INTEGER NOT NULL REFERENCES cases (id),
+    precondition_id INTEGER NOT NULL REFERENCES cases (id),
+    PRIMARY KEY (case_id, precondition_id)
+);
+CREATE TABLE execution_preconditions (
+    id INTEGER PRIMARY KEY,
+    execution_id INTEGER NOT NULL REFERENCES executions (id),
+    title TEXT NOT NULL CHECK (title <> '')
+);
+CREATE INDEX execution_preconditions_execution_id ON execution_preconditions (execution_id);
+`
+
+const sampleRunData = `
+INSERT INTO projects (id, name) VALUES (1, 'Mobile');
+INSERT INTO cases (id, title, description, priority) VALUES
+    (4, 'Login works', 'Sign in.', 'High'),
+    (7, 'Checkout works', 'Pay with a card.', 'Low'),
+    (9, 'Logout works', '', 'Medium');
+INSERT INTO case_preconditions (case_id, precondition_id) VALUES (7, 4), (9, 4);
+INSERT INTO runs (id, project_id, name) VALUES (6, 1, 'Sprint 1');
+INSERT INTO executions (id, run_id, case_id, title, status, description, priority) VALUES
+    (20, 6, 4, 'Sign in works', 'Passed', 'Sign in.', 'High'),
+    (21, 6, 7, 'Checkout works', NULL, 'Pay with a card.', 'Low'),
+    (22, 6, 9, 'Logout works', 'Failed', '', 'Medium');
+INSERT INTO execution_preconditions (id, execution_id, title) VALUES
+    (50, 21, 'Sign in works'),
+    (51, 22, 'Sign in works');
+`
+
+func TestACaseInARunOfAVersion8DatabaseCanBeDeleted(t *testing.T) {
+	a := startApp(t, databaseAt(t, 8, schemaV8+sampleRunData))
+	login := a.caseLink("Login works")
+	run := a.inProject("Mobile").runs()[0]
+	if got, want := a.casesUsing(login), []string{"Checkout works", "Logout works"}; !slices.Equal(got, want) {
+		t.Fatalf("cases using %q = %q, want %q", login.Text, got, want)
+	}
+
+	a.mustDeleteCase(login)
+
+	if got, want := a.caseTitles(), []string{"Checkout works", "Logout works"}; !slices.Equal(got, want) {
+		t.Errorf("case titles = %q, want %q", got, want)
+	}
+	a.assertPreconditions(a.caseLink("Checkout works"))
+	a.assertPreconditions(a.caseLink("Logout works"))
+	wantExecutions := []string{"Sign in works Passed", "Checkout works Untested", "Logout works Failed"}
+	if got := a.executions(run); !slices.Equal(got, wantExecutions) {
+		t.Errorf("executions = %q, want %q", got, wantExecutions)
+	}
+	wantFields := []executionFields{
+		{Priority: "High", Description: "Sign in."},
+		{Priority: "Low", Description: "Pay with a card."},
+		{Priority: "Medium"},
+	}
+	if got := a.executionFields(run); !slices.Equal(got, wantFields) {
+		t.Errorf("execution fields = %q, want %q", got, wantFields)
+	}
+	a.assertExecutionPreconditions(run, "Checkout works", "Sign in works")
+	a.assertExecutionPreconditions(run, "Logout works", "Sign in works")
+	if got, want := a.statusAction(run, "Sign in works"), run.Href+"/executions/20/status"; got != want {
+		t.Errorf("status action = %q, want %q", got, want)
+	}
+
+	a.mustEnterStatus(run, "Sign in works", "Failed")
+
+	wantExecutions[0] = "Sign in works Failed"
+	if got := a.executions(run); !slices.Equal(got, wantExecutions) {
+		t.Errorf("executions after status = %q, want %q", got, wantExecutions)
+	}
+}
+
+func TestVersion8PreconditionsAreKeptAndCopiedByRunsStartedAfterTheMigration(t *testing.T) {
+	a := startApp(t, databaseAt(t, 8, schemaV8+sampleRunData))
+	mobile := a.inProject("Mobile")
+	checkout := a.caseLink("Checkout works")
+	a.assertPreconditions(checkout, "Login works")
+
+	mobile.mustStartRun("Sprint 2")
+
+	sprint2 := mobile.runs()[1]
+	want := []string{"Login works Untested", "Checkout works Untested", "Logout works Untested"}
+	if got := a.executions(sprint2); !slices.Equal(got, want) {
+		t.Errorf("Sprint 2 executions = %q, want %q", got, want)
+	}
+	a.assertExecutionPreconditions(sprint2, "Checkout works", "Login works")
+	a.assertPreconditions(checkout, "Login works")
+}
+
+func TestTheAddressOfADeletedVersion8CaseIsNotGivenToANewCase(t *testing.T) {
+	a := startApp(t, databaseAt(t, 8, schemaV8+sampleRunData))
+	logout := a.caseLink("Logout works")
+	a.mustDeleteCase(logout)
+
+	reset := a.newCase("Reset password works")
+
+	if reset.Href == logout.Href {
+		t.Errorf("new case took the address of the deleted one: %s", reset.Href)
+	}
+}

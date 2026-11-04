@@ -2,13 +2,17 @@ import { expect, test } from './fixtures';
 import {
   caseList,
   casePriority,
+  casesUsingPrecondition,
   createCase,
   createProject,
+  deleteCase,
   editCase,
+  enterStatus,
   executionList,
   executionRow,
   menuLink,
   openCase,
+  openCaseDeletion,
   openLibrary,
   openProject,
   openRun,
@@ -112,4 +116,55 @@ test('Düzenleme başlamış run ı etkilemez: eski run eski değerleri, yeni ru
   const fresh = executionRow(page, 'Sign in works');
   await expect(fresh.getByTestId('execution-priority')).toHaveText('High');
   await expect(fresh.getByTestId('execution-description')).toHaveText('Sign in with single sign-on.');
+});
+
+test('Case silme: case sayfasından onay adımına gidilir, onaydan sonra case Library de görünmez', async ({ page }) => {
+  await createCase(page, 'Login works');
+  await createCase(page, 'Logout works');
+  await openCaseDeletion(page, 'Login works');
+
+  await page.getByRole('button', { name: 'Delete case' }).click();
+
+  await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
+  await expect(caseList(page)).toHaveText(['Logout works']);
+});
+
+test('Silme onayı: case i Precondition olarak kullanan case ler listelenir, Cancel case i silmez', async ({ page }) => {
+  await createCase(page, 'Login works');
+  await createCase(page, 'Checkout works', { preconditions: ['Login works'] });
+  await openCaseDeletion(page, 'Login works');
+  await expect(casesUsingPrecondition(page)).toHaveText(['Checkout works']);
+
+  await page.getByRole('link', { name: 'Cancel' }).click();
+
+  await expect(page.getByLabel('Title')).toHaveValue('Login works');
+  await openLibrary(page);
+  await expect(caseList(page)).toHaveText(['Login works', 'Checkout works']);
+});
+
+test('Silinen case in execution ı: Run ekranında kopyalarıyla görünür, status girilir', async ({ page }) => {
+  await createProject(page, 'Mobile');
+  await createCase(page, 'Login works');
+  await createCase(page, 'Checkout works', {
+    description: 'Pay with a card.',
+    priority: 'High',
+    preconditions: ['Login works'],
+  });
+  await startRun(page, 'Mobile', 'Sprint 1');
+
+  await deleteCase(page, 'Checkout works');
+  await deleteCase(page, 'Login works');
+
+  await openRun(page, 'Mobile', 'Sprint 1');
+  await expect(executionList(page)).toHaveText(['Login works Untested', 'Checkout works Untested']);
+  const deleted = executionRow(page, 'Checkout works');
+  await expect(deleted.getByTestId('execution-priority')).toHaveText('High');
+  await expect(deleted.getByTestId('execution-description')).toHaveText('Pay with a card.');
+  await expect(deleted.getByTestId('execution-precondition')).toHaveText(['Login works']);
+
+  await enterStatus(page, 'Checkout works', 'Passed');
+
+  await expect(executionList(page)).toHaveText(['Login works Untested', 'Checkout works Passed']);
+  await page.reload();
+  await expect(executionList(page)).toHaveText(['Login works Untested', 'Checkout works Passed']);
 });

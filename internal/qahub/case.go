@@ -116,3 +116,18 @@ func (s *Store) UpdateCase(ctx context.Context, id CaseID, title Title, descript
 	}
 	return tx.Commit()
 }
+
+func (s *Store) DeleteCase(ctx context.Context, id CaseID) error {
+	res, err := s.db.ExecContext(ctx, "DELETE FROM cases WHERE id = ?", id)
+	if err != nil {
+		return err
+	}
+	matched, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if matched == 0 {
+		return ErrCaseNotFound
+	}
+	return nil
+}

@@ -41,6 +41,11 @@ main > form {
   align-items: stretch;
 }
 
+main > form > a {
+  align-self: center;
+  margin-bottom: var(--pico-spacing);
+}
+
 main > form > label,
 main > form > details,
 main > form > [role="alert"] {
@@ -158,14 +163,16 @@ button[value="Passed"]:is(:hover, :active, :focus) {
   --pico-color: #fff;
 }
 
-button[value="Failed"] {
+button[value="Failed"],
+button[name="confirm"] {
   --pico-background-color: var(--qa-failed);
   --pico-border-color: var(--qa-failed);
   --pico-color: #fff;
   --pico-primary-focus: rgba(198, 40, 40, 0.5);
 }
 
-button[value="Failed"]:is(:hover, :active, :focus) {
+button[value="Failed"]:is(:hover, :active, :focus),
+button[name="confirm"]:is(:hover, :active, :focus) {
   --pico-background-color: var(--qa-failed-hover);
   --pico-border-color: var(--qa-failed-hover);
   --pico-color: #fff;

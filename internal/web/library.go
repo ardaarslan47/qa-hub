@@ -14,10 +14,15 @@ const (
 	libraryPath              = "/library"
 	preconditionUnknownError = "A Precondition must be a case in the Library."
 	preconditionCycleError   = "A case cannot be its own Precondition, directly or through other cases."
+	deletionConfirmed        = "yes"
 )
 
 func casePath(id qahub.CaseID) string {
 	return fmt.Sprintf("%s/%d", libraryPath, id)
+}
+
+func caseDeletionPath(id qahub.CaseID) string {
+	return casePath(id) + "/delete"
 }
 
 type caseForm struct {
@@ -164,6 +169,36 @@ func (h handler) editCase(w http.ResponseWriter, r *http.Request, c qahub.Case) 
 		return
 	}
 	http.Redirect(w, r, libraryPath, http.StatusSeeOther)
+}
+
+func (h handler) confirmCaseDeletion(w http.ResponseWriter, r *http.Request, c qahub.Case) {
+	h.renderCaseDeletion(w, r, http.StatusOK, c)
+}
+
+func (h handler) deleteCase(w http.ResponseWriter, r *http.Request, c qahub.Case) {
+	if r.PostFormValue("confirm") != deletionConfirmed {
+		h.renderCaseDeletion(w, r, http.StatusUnprocessableEntity, c)
+		return
+	}
+	err := h.store.DeleteCase(r.Context(), c.ID)
+	if errors.Is(err, qahub.ErrCaseNotFound) {
+		http.NotFound(w, r)
+		return
+	}
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	http.Redirect(w, r, libraryPath, http.StatusSeeOther)
+}
+
+func (h handler) renderCaseDeletion(w http.ResponseWriter, r *http.Request, status int, c qahub.Case) {
+	usedBy, err := h.store.CasesUsingPrecondition(r.Context(), c.ID)
+	if err != nil {
+		serverError(w, r, err)
+		return
+	}
+	render(w, r, status, caseDeletionPage(c, usedBy))
 }
 
 func (h handler) renderLibrary(w http.ResponseWriter, r *http.Request, status int, form caseForm) {

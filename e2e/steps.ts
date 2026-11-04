@@ -73,6 +73,20 @@ export async function editCase(
   await page.getByRole('button', { name: 'Save case' }).click();
 }
 
+export async function openCaseDeletion(page: Page, title: string) {
+  await openCase(page, title);
+  await page.getByRole('link', { name: 'Delete case' }).click();
+}
+
+export async function deleteCase(page: Page, title: string) {
+  await openCaseDeletion(page, title);
+  await page.getByRole('button', { name: 'Delete case' }).click();
+}
+
+export function casesUsingPrecondition(page: Page) {
+  return page.getByRole('list', { name: 'Cases using this Precondition' }).getByRole('listitem');
+}
+
 export function casePreconditions(page: Page) {
   return page.getByRole('list', { name: 'Preconditions' }).getByRole('listitem');
 }

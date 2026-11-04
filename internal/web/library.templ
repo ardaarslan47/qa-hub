@@ -39,6 +39,26 @@ templ casePage(c qahub.Case, preconditions []qahub.Case, choices []qahub.Case, f
 		<form method="post" action={ templ.SafeURL(casePath(c.ID)) }>
 			@caseFields(form, choices, "Save case")
 		</form>
+		<p><a href={ templ.SafeURL(caseDeletionPath(c.ID)) }>Delete case</a></p>
+	}
+}
+
+templ caseDeletionPage(c qahub.Case, usedBy []qahub.Case) {
+	@layout("Delete "+c.Title.String(), nil) {
+		<h1>Delete { c.Title.String() }</h1>
+		<p>This permanently removes the case from the Library. Executions in started runs keep their copies.</p>
+		if len(usedBy) > 0 {
+			<h2>Cases using this Precondition</h2>
+			<ul aria-label="Cases using this Precondition">
+				for _, other := range usedBy {
+					<li><a href={ templ.SafeURL(casePath(other.ID)) }>{ other.Title.String() }</a></li>
+				}
+			</ul>
+		}
+		<form method="post" action={ templ.SafeURL(caseDeletionPath(c.ID)) }>
+			<button type="submit" name="confirm" value={ deletionConfirmed }>Delete case</button>
+			<a href={ templ.SafeURL(casePath(c.ID)) }>Cancel</a>
+		</form>
 	}
 }
 

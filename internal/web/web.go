@@ -23,6 +23,8 @@ func New(store *qahub.Store) http.Handler {
 	mux.HandleFunc("POST "+libraryPath, h.createCase)
 	mux.HandleFunc("GET "+libraryPath+"/{id}", h.inCase(h.showCase))
 	mux.HandleFunc("POST "+libraryPath+"/{id}", h.inCase(h.editCase))
+	mux.HandleFunc("GET "+libraryPath+"/{id}/delete", h.inCase(h.confirmCaseDeletion))
+	mux.HandleFunc("POST "+libraryPath+"/{id}/delete", h.inCase(h.deleteCase))
 	mux.HandleFunc("GET /projects", h.listProjects)
 	mux.HandleFunc("POST /projects", h.createProject)
 	mux.HandleFunc("GET /projects/{id}", h.inProject(h.showProject))

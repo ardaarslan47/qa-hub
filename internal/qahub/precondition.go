@@ -23,6 +23,15 @@ func (s *Store) Preconditions(ctx context.Context, id CaseID) ([]Case, error) {
 		ORDER BY c.id`, id)
 }
 
+func (s *Store) CasesUsingPrecondition(ctx context.Context, id CaseID) ([]Case, error) {
+	return s.queryCases(ctx, `
+		SELECT c.id, c.title, c.description, c.priority
+		FROM cases c
+		JOIN case_preconditions link ON link.case_id = c.id
+		WHERE link.precondition_id = ?
+		ORDER BY c.id`, id)
+}
+
 func linkPreconditions(ctx context.Context, tx *sql.Tx, id CaseID, preconditions []CaseID) error {
 	for _, precondition := range preconditions {
 		_, err := tx.ExecContext(ctx,
