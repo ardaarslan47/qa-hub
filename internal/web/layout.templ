@@ -9,16 +9,8 @@ templ layout(title string, project *qahub.Project) {
 			<meta charset="utf-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1"/>
 			<title>{ title } · QA Hub</title>
-			<style>
-				body { font-family: system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
-				nav { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
-				form { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1.5rem; }
-				li form { display: inline-flex; margin: 0 0 0 0.5rem; }
-				dl { display: grid; grid-template-columns: max-content 1fr; gap: 0 1rem; margin: 0 0 1rem; }
-				dt { font-weight: 600; }
-				dd { margin: 0; white-space: pre-wrap; }
-				[role="alert"] { flex-basis: 100%; margin: 0; color: #b00020; }
-			</style>
+			<link rel="stylesheet" href="/static/pico.classless.min.css"/>
+			<link rel="stylesheet" href="/static/qa-hub.css"/>
 		</head>
 		<body>
 			<nav aria-label="Main">
