@@ -34,7 +34,7 @@ main > nav {
   margin-bottom: var(--pico-spacing);
 }
 
-main > form {
+main > form:has(> label:only-of-type, > a) {
   display: grid;
   grid-template-columns: 1fr auto;
   column-gap: 1rem;
@@ -46,9 +46,8 @@ main > form > a {
   margin-bottom: var(--pico-spacing);
 }
 
-main > form > label,
-main > form > details,
-main > form > [role="alert"] {
+main > form:has(> label:only-of-type) > label,
+main > form:has(> label:only-of-type) > [role="alert"] {
   grid-column: 1 / -1;
 }
 
