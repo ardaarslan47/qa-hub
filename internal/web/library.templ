@@ -6,49 +6,62 @@ templ libraryPage(cases []qahub.Case, form caseForm) {
 	@layout("Library", nil) {
 		<h1>Library</h1>
 		<form method="post" action={ templ.SafeURL(libraryPath) }>
-			<label for="title">Title</label>
-			<input
-				id="title"
-				name="title"
-				type="text"
-				value={ form.Title }
-				autofocus
-				if form.TitleError != "" {
-					aria-invalid="true"
-					aria-describedby="title-error"
-				}
-			/>
-			<label for="description">Description</label>
-			<textarea id="description" name="description" rows="3">{ form.Description }</textarea>
-			<label for="priority">Priority</label>
-			<select
-				id="priority"
-				name="priority"
-				if form.PriorityError != "" {
-					aria-invalid="true"
-					aria-describedby="priority-error"
-				}
-			>
-				for _, p := range qahub.Priorities() {
-					<option value={ p.String() } selected?={ p == form.Priority }>{ p.String() }</option>
-				}
-			</select>
-			<button type="submit">Create case</button>
-			if form.TitleError != "" {
-				<p id="title-error" role="alert">{ form.TitleError }</p>
-			}
-			if form.PriorityError != "" {
-				<p id="priority-error" role="alert">{ form.PriorityError }</p>
-			}
+			@caseFields(form, "Create case")
 		</form>
 		if len(cases) == 0 {
 			<p>No cases yet.</p>
 		} else {
 			<ul aria-label="Cases">
 				for _, c := range cases {
-					<li><span data-testid="case-title">{ c.Title.String() }</span> <span data-testid="case-priority">{ c.Priority.String() }</span></li>
+					<li><a data-testid="case-title" href={ templ.SafeURL(casePath(c.ID)) }>{ c.Title.String() }</a> <span data-testid="case-priority">{ c.Priority.String() }</span></li>
 				}
 			</ul>
 		}
+	}
+}
+
+templ casePage(c qahub.Case, form caseForm) {
+	@layout(c.Title.String(), nil) {
+		<h1>{ c.Title.String() }</h1>
+		<form method="post" action={ templ.SafeURL(casePath(c.ID)) }>
+			@caseFields(form, "Save case")
+		</form>
+	}
+}
+
+templ caseFields(form caseForm, submit string) {
+	<label for="title">Title</label>
+	<input
+		id="title"
+		name="title"
+		type="text"
+		value={ form.Title }
+		autofocus
+		if form.TitleError != "" {
+			aria-invalid="true"
+			aria-describedby="title-error"
+		}
+	/>
+	<label for="description">Description</label>
+	<textarea id="description" name="description" rows="3">{ form.Description }</textarea>
+	<label for="priority">Priority</label>
+	<select
+		id="priority"
+		name="priority"
+		if form.PriorityError != "" {
+			aria-invalid="true"
+			aria-describedby="priority-error"
+		}
+	>
+		for _, p := range qahub.Priorities() {
+			<option value={ p.String() } selected?={ p == form.Priority }>{ p.String() }</option>
+		}
+	</select>
+	<button type="submit">{ submit }</button>
+	if form.TitleError != "" {
+		<p id="title-error" role="alert">{ form.TitleError }</p>
+	}
+	if form.PriorityError != "" {
+		<p id="priority-error" role="alert">{ form.PriorityError }</p>
 	}
 }

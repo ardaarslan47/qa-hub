@@ -166,6 +166,60 @@ func (a *app) caseTitles() []string {
 	return titles
 }
 
+func (a *app) caseLink(title string) link {
+	a.t.Helper()
+	status, body := a.do(http.MethodGet, "/library", nil)
+	if status != http.StatusOK {
+		a.t.Fatalf("GET /library: status %d\n%s", status, body)
+	}
+	for _, l := range listLinks(a.t, body, "Cases") {
+		if l.Text == title {
+			return l
+		}
+	}
+	a.t.Fatalf("no case titled %q in the library\n%s", title, body)
+	return link{}
+}
+
+func (a *app) editCase(c link, title, description, priority string) (int, string) {
+	a.t.Helper()
+	form := url.Values{"title": {title}, "description": {description}, "priority": {priority}}
+	return a.do(http.MethodPost, c.Href, form)
+}
+
+func (a *app) mustEditCase(c link, title, description, priority string) {
+	a.t.Helper()
+	if status, body := a.editCase(c, title, description, priority); status != http.StatusOK {
+		a.t.Fatalf("edit case %q: status %d\n%s", c.Text, status, body)
+	}
+}
+
+type caseFields struct {
+	Title       string
+	Description string
+	Priority    string
+}
+
+func (a *app) caseFields(c link) caseFields {
+	a.t.Helper()
+	status, body := a.do(http.MethodGet, c.Href, nil)
+	if status != http.StatusOK {
+		a.t.Fatalf("GET %s: status %d\n%s", c.Href, status, body)
+	}
+	return caseFieldsOf(a.t, body)
+}
+
+func caseFieldsOf(t *testing.T, page string) caseFields {
+	t.Helper()
+	fields := caseFields{Title: fieldValue(t, page, "title"), Description: fieldValue(t, page, "description")}
+	for _, o := range priorityOptionsOf(t, page) {
+		if o.Selected {
+			fields.Priority = o.Value
+		}
+	}
+	return fields
+}
+
 type option struct {
 	Value    string
 	Selected bool

@@ -49,6 +49,23 @@ function caseRows(page: Page) {
   return page.getByRole('list', { name: 'Cases' }).getByRole('listitem');
 }
 
+export async function openCase(page: Page, title: string) {
+  await openLibrary(page);
+  await caseRows(page).getByRole('link', { name: title, exact: true }).click();
+}
+
+export async function editCase(
+  page: Page,
+  title: string,
+  fields: { title?: string; description?: string; priority?: 'Low' | 'Medium' | 'High' },
+) {
+  await openCase(page, title);
+  if (fields.title !== undefined) await page.getByLabel('Title').fill(fields.title);
+  if (fields.description !== undefined) await page.getByLabel('Description').fill(fields.description);
+  if (fields.priority !== undefined) await page.getByLabel('Priority').selectOption(fields.priority);
+  await page.getByRole('button', { name: 'Save case' }).click();
+}
+
 export function caseList(page: Page) {
   return caseRows(page).getByTestId('case-title');
 }
